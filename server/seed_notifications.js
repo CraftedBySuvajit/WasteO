@@ -20,7 +20,7 @@ const seed = async () => {
     const examples = [
       {
         user: user._id,
-        message: '🎉 Welcome to SustainX! 100 bonus points credited to your account.',
+        message: '🎉 Welcome to WasteO! 100 bonus points credited to your account.',
         type: 'reward',
         isRead: false
       },

@@ -79,7 +79,7 @@ const submitComplaint = async (req, res) => {
 
     if (req.file) {
       try {
-        imageUrl = await uploadToCloudinary(req.file, 'sustainx/complaints');
+        imageUrl = await uploadToCloudinary(req.file, 'wasteo/complaints');
         console.log(`✅ [SUBMIT] Cloudinary URL: ${imageUrl}`);
       } catch (uploadErr) {
         console.error("❌ [SUBMIT] Cloudinary upload failed:", uploadErr.message);
@@ -229,7 +229,7 @@ const completeComplaint = async (req, res) => {
     let imageUrl;
     try {
       console.log("☁️ [COMPLETE] Uploading to Cloudinary...");
-      imageUrl = await uploadToCloudinary(req.file, 'sustainx/completions');
+      imageUrl = await uploadToCloudinary(req.file, 'wasteo/completions');
       console.log("✅ [COMPLETE] Cloudinary URL:", imageUrl);
     } catch (uploadErr) {
       console.error("❌ [COMPLETE] Cloudinary FAILED:", uploadErr.message);

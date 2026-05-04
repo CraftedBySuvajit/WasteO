@@ -1,8 +1,8 @@
-require('dotenv').config();
+const path = require('path');
+require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
-const path = require('path');
 const connectDB = require('./config/db');
 
 // Route imports
@@ -29,7 +29,6 @@ const allowedOrigins = [
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
   "http://127.0.0.1:5173",
-  "https://sustainx-frontend-7xw0.onrender.com"
 ];
 
 app.use(cors({
@@ -63,12 +62,12 @@ app.use('/api/notifications', notificationRoutes);
 
 // ✅ Root route (Render health check)
 app.get('/', (req, res) => {
-  res.send('🚀 SustainX Backend Running Successfully');
+  res.send('🚀 WasteO Backend Running Successfully');
 });
 
 // ✅ API check
 app.get('/api', (req, res) => {
-  res.send('🚀 SustainX API is running successfully...');
+  res.send('🚀 WasteO API is running successfully...');
 });
 
 // ✅ Health check (includes Cloudinary config status for debugging)

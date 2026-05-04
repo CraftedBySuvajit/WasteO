@@ -1,4 +1,4 @@
-# 🌍 WasteO – Building a Cleaner, Healthier Future
+# 🌿 WasteO – Smart Campus Waste Management System
 
 > Transforming waste into opportunity, cleanliness into habit, and health into priority.
 
@@ -6,7 +6,7 @@
 
 ## ✨ Vision
 
-**WasteO is not just a project — it's a local demo for cleaner campus operations.**
+**WasteO is not just a project — it's a real platform for cleaner campus operations.**
 
 We aim to create a world where:
 - Waste is managed intelligently  
@@ -17,7 +17,7 @@ We aim to create a world where:
 
 ## 🚀 What is WasteO?
 
-**WasteO** is a local browser-based waste management demo that integrates:
+**WasteO** is a browser-based waste management platform that integrates:
 
 - ♻️ Waste Management  
 - 🏥 Healthcare Awareness  
@@ -27,7 +27,7 @@ It empowers individuals, campuses, and organizations to **track, improve, and su
 
 ---
 
-## 🔥 Why SustainX Matters
+## 🔥 Why WasteO Matters
 
 Today’s world faces:
 
@@ -36,7 +36,7 @@ Today’s world faces:
 - ❌ Minimal environmental awareness  
 - ❌ No real-time tracking systems  
 
-👉 **SustainX solves these problems by combining technology with sustainability.**
+👉 **WasteO solves these problems by combining technology with sustainability.**
 
 ---
 
@@ -73,23 +73,21 @@ Today’s world faces:
 
 | Layer        | Technology |
 |-------------|-----------|
-| Frontend    | Flutter |
-| Backend     | Firebase |
-| Languages   | Dart, C++, Swift |
-| Platforms   | Android, iOS, Web |
+| Frontend    | React.js (Vite), Context API |
+| Backend     | Node.js, Express.js |
+| Database    | MongoDB (Mongoose) |
+| Styling     | Modern CSS3 (Variables & Dark Mode) |
 
 ---
 
 ## 📂 Project Structure
 
 ```bash
-SustainX/
-│── lib/              # Core Flutter app logic
-│── android/          # Android setup
-│── ios/              # iOS setup
-│── web/              # Web version
-│── test/             # Test cases
-│── pubspec.yaml      # Dependencies
+WasteO/
+│── client/           # React Frontend
+│── server/           # Node.js Backend
+│── package.json      # Root dependencies (concurrently)
+│── .gitignore        # Git exclusion rules
 ```
 
 ---
@@ -98,19 +96,83 @@ SustainX/
 
 ### 1. Clone the repository
 ```bash
-git clone https://github.com/bhaveshkumbhalwar/SustainX.git
-cd SustainX
+git clone https://github.com/Suvajit-Code/WasteO.git
+cd WasteO
 ```
 
 ### 2. Install dependencies
 ```bash
-flutter pub get
+npm run install-all
 ```
 
 ### 3. Run the project
 ```bash
-flutter run
+npm run dev
 ```
+
+---
+
+## ✅ Verified Run Guide (Windows, May 2026)
+
+These steps were checked against the current codebase.
+
+### 1. Prerequisites
+
+- Node.js 18+ (Node 22 also works)
+- npm 9+
+
+### 2. Install all dependencies (root + server + client)
+
+From the `WasteO` project root:
+
+```bash
+npm run install-all
+```
+
+### 3. Optional backend database setup (MongoDB)
+
+If you want full backend API + database features, create `server/.env`:
+
+```env
+PORT=5000
+MONGO_URI=mongodb://127.0.0.1:27017/wasteo
+JWT_SECRET=replace_with_strong_secret
+```
+
+Notes:
+
+- If `MONGO_URI` is not set, backend now starts in degraded mode (no DB connection) instead of crashing.
+- Configure `MONGO_URI` in `server/.env` to enable backend database features.
+
+### 4. Start both apps
+
+```bash
+npm run dev
+```
+
+Expected:
+
+- Frontend: `http://localhost:3001` (or next free port)
+- Backend: `http://localhost:5000`
+
+### 5. (Optional) Seed users in MongoDB mode
+
+Run only after `MONGO_URI` is configured:
+
+```bash
+npm run seed
+```
+
+### 6. Default login
+
+- Admin: `admin@edu.in` / `12345678`
+- Student: `student@edu.in` / `12345678`
+- Collector: `collector@edu.in` / `12345678`
+
+### Troubleshooting
+
+- Error `Cannot find module server.ts`: fixed by using existing `server.js` in npm scripts.
+- If port is busy, Vite auto-selects another port.
 
 ---
 
@@ -183,4 +245,6 @@ If you like this project:
 
 > Small actions, when multiplied by millions, can transform the world.
 
-**SustainX is one step toward that transformation.**
+**WasteO is one step toward that transformation.**
+
+Created by Suvajit Ghosh. Copyright reserved.

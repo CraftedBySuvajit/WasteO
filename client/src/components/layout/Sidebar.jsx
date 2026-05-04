@@ -51,6 +51,7 @@ export default function Sidebar({ portalName, icon, navItems, activeSection, onN
           <button className="btn btn-ghost btn-sm btn-full mt-1" onClick={logout}>
             🚪 Sign Out
           </button>
+          <p className="sidebar-credit">Created by Suvajit Ghosh · Copyright reserved.</p>
         </div>
       </aside>
     </>

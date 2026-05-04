@@ -219,7 +219,7 @@ export default function CollectorDashboard() {
   useEffect(() => {
     const newIot = openComplaints.find(c => c.type === 'iot' && c.status === 'pending');
     if (newIot) {
-      // Use a simple local storage or ref to avoid repeating toast for the same complaint
+      // Use sessionStorage to avoid repeating toast for the same complaint
       const lastAlertId = sessionStorage.getItem('last_iot_alert');
       if (lastAlertId !== newIot.complaintId) {
         showToast(`🚨 DUSTBIN FULL: IoT Alert in Block ${newIot.block}!`, 'warning');

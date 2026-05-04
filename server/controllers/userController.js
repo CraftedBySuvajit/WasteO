@@ -67,7 +67,7 @@ const createUser = async (req, res) => {
     // ✅ Notify the new user
     await createNotification(
       user._id,
-      `👋 Welcome to SustainX, ${user.name}! Your account as a ${user.role} has been created.`,
+      `👋 Welcome to WasteO, ${user.name}! Your account as a ${user.role} has been created.`,
       'info'
     );
 

@@ -306,7 +306,8 @@ export default function AuthPage() {
               </div>
             )}
 
-            <p className="auth-footer-bar">WasteO v1.0 &nbsp;·&nbsp; Local Storage Demo</p>
+            <p className="auth-footer-bar">WasteO v1.0 &nbsp;·&nbsp; Smart Waste Management Platform</p>
+            <p className="app-credit">Created by Suvajit Ghosh · Copyright reserved.</p>
           </div>
         </div>
       </div>

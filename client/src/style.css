@@ -101,9 +101,9 @@
 }
 
 [data-theme="dark"] {
-  --bg-page: #050805;
-  --bg-card: #0D120D;
-  --bg-sidebar: #080B08;
+  --bg-page: #040604;
+  --bg-card: #0A0E0A;
+  --bg-sidebar: #060906;
   --bg-sidebar-item: rgba(145, 208, 108, .05);
   --bg-input: #1C241C;
   --bg-badge: rgba(75, 152, 111, .15);
@@ -155,7 +155,7 @@ body {
   min-height: -webkit-fill-available;
   transition: background var(--t-med), color var(--t-med);
   overflow-x: hidden;
-  display: block;
+  display: flex;
   flex-direction: column;
 }
 
@@ -815,6 +815,21 @@ tbody td {
   font-size: .7rem;
   color: var(--clr-green);
   font-weight: 600;
+}
+
+.sidebar-credit {
+  margin-top: .7rem;
+  font-size: .68rem;
+  line-height: 1.35;
+  color: var(--txt-muted);
+  text-align: center;
+}
+
+.app-credit {
+  text-align: center;
+  font-size: .72rem;
+  color: var(--txt-muted);
+  margin-top: .55rem;
 }
 
 /* ── Main Content ─────────────────────────────────────────── */

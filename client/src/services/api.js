@@ -15,7 +15,7 @@ function emptyData() {
     { _id: 'student-4', name: 'Siddharth Roy', email: 'sid@edu.in', password: '12345678', role: 'student', dept: 'Electrical Engineering', block: 'A', rewardPoints: 45, createdAt: now },
   ];
 
-  // Add 20+ Collectors for management demo
+  // Add 20+ collectors for management
   for (let i = 1; i <= 25; i++) {
     users.push({
       _id: `collector-${i}`,
@@ -66,7 +66,7 @@ function emptyData() {
     notifications: [
       { _id: 'note-1', user: 'student-1', title: 'Welcome to WasteO!', message: 'You have earned 140 points to start reporting waste and redeeming rewards.', isRead: false, createdAt: now },
       { _id: 'note-2', user: 'collector-1', title: 'New IoT Alert', message: 'Dustbin full alert received for Block C.', isRead: false, createdAt: now },
-      { _id: 'note-3', user: 'admin-1', title: 'System Ready', message: 'WasteO is running in Local Storage mode.', isRead: false, createdAt: now },
+      { _id: 'note-3', user: 'admin-1', title: 'System Ready', message: 'WasteO system is running successfully.', isRead: false, createdAt: now },
     ],
     iotBins: [
       { _id: 'bin-1', label: 'B1', block: 'A', fillLevel: 81, status: 'High', location: 'Science Block' },
@@ -88,7 +88,7 @@ function getData() {
     data = emptyData();
   }
 
-  // Force refresh demo users to ensure they match the latest requested credentials
+  // Refresh default users to ensure they match the latest requested credentials
   const demoLogins = [
     { email: 'admin@edu.in', role: 'admin' },
     { email: 'collector@edu.in', role: 'collector' },
@@ -113,9 +113,9 @@ function saveData(data) {
 
 function getCurrentUser() {
   const token = localStorage.getItem(TOKEN_KEY);
-  if (!token) {
-    throw { response: { data: { message: 'Not authenticated' } } };
-  }
+  // If no token, return null rather than throwing immediately to allow UI to handle guest state
+  if (!token) return null;
+  
   const data = getData();
   const user = data.users.find((u) => u._id === token);
   if (!user) {
@@ -189,6 +189,7 @@ export const registerUser = async ({ name, email, dept, password }) => {
 
 export const getMe = async () => {
   const user = getCurrentUser();
+  if (!user) throw { response: { data: { message: 'Not authenticated' } } };
   return formatResponse({ user: sanitizeUser(user) });
 };
 

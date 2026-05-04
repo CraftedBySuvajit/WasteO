@@ -1,6 +1,11 @@
 const multer = require("multer");
 const cloudinary = require("../config/cloudinary");
 const streamifier = require("streamifier");
+const fs = require("fs");
+const path = require("path");
+const crypto = require("crypto");
+
+const { isCloudinaryConfigured } = require("../config/cloudinary");
 
 // ─── Use memoryStorage (works on Render, Heroku, etc.) ───
 const storage = multer.memoryStorage();
@@ -20,12 +25,35 @@ const upload = multer({
   limits: { fileSize: 5 * 1024 * 1024 }, // 5 MB
 });
 
+const ensureUploadsDir = () => {
+  const uploadsDir = path.join(__dirname, "..", "uploads");
+  if (!fs.existsSync(uploadsDir)) {
+    fs.mkdirSync(uploadsDir, { recursive: true });
+  }
+  return uploadsDir;
+};
+
+const getFileExtension = (file) => {
+  if (!file?.mimetype) return "bin";
+  const ext = file.mimetype.split("/")[1] || "bin";
+  return ext.replace(/[^a-zA-Z0-9]/g, "").toLowerCase() || "bin";
+};
+
+const saveFileLocally = (file) => {
+  const uploadsDir = ensureUploadsDir();
+  const extension = getFileExtension(file);
+  const fileName = `${Date.now()}-${crypto.randomBytes(4).toString("hex")}.${extension}`;
+  const fullPath = path.join(uploadsDir, fileName);
+  fs.writeFileSync(fullPath, file.buffer);
+  return `/uploads/${fileName}`;
+};
+
 /**
  * Upload a multer memoryStorage file buffer to Cloudinary via streamifier.
  * Returns the secure_url string on success.
  * Includes full diagnostics for production debugging.
  */
-const uploadToCloudinary = (file, folder = "sustainx") => {
+const uploadToCloudinary = (file, folder = "wasteo") => {
   return new Promise((resolve, reject) => {
     // ── Pre-flight check: file buffer ──
     if (!file || !file.buffer) {
@@ -33,18 +61,17 @@ const uploadToCloudinary = (file, folder = "sustainx") => {
       return reject(new Error("No file buffer provided for Cloudinary upload"));
     }
 
-    console.log(`☁️ [CLOUDINARY] Starting upload | folder=${folder} | size=${file.buffer.length} bytes | mime=${file.mimetype}`);
+    console.log(`☁️ [UPLOAD] Starting upload | folder=${folder} | size=${file.buffer.length} bytes | mime=${file.mimetype}`);
 
-    // ── Pre-flight check: Cloudinary config ──
-    const cfg = cloudinary.config();
-    if (!cfg.cloud_name || !cfg.api_key || !cfg.api_secret) {
-      const missing = [];
-      if (!cfg.cloud_name) missing.push("CLOUDINARY_CLOUD_NAME");
-      if (!cfg.api_key) missing.push("CLOUDINARY_API_KEY");
-      if (!cfg.api_secret) missing.push("CLOUDINARY_API_SECRET");
-      const errMsg = `Cloudinary not configured! Missing env vars: ${missing.join(", ")}`;
-      console.error(`❌ [CLOUDINARY] ${errMsg}`);
-      return reject(new Error(errMsg));
+    if (!isCloudinaryConfigured()) {
+      try {
+        const localUrl = saveFileLocally(file);
+        console.log(`📁 [UPLOAD] Cloudinary not configured. Saved locally: ${localUrl}`);
+        return resolve(localUrl);
+      } catch (localErr) {
+        console.error("❌ [UPLOAD] Local fallback failed:", localErr.message);
+        return reject(new Error(`Local upload failed: ${localErr.message}`));
+      }
     }
 
     // ── Upload stream (no format restriction — let Cloudinary auto-detect) ──
@@ -59,7 +86,7 @@ const uploadToCloudinary = (file, folder = "sustainx") => {
           console.error("❌ [CLOUDINARY] No secure_url in result:", JSON.stringify(result));
           return reject(new Error("Cloudinary returned no URL"));
         }
-        console.log(`✅ [CLOUDINARY] Upload OK: ${result.secure_url}`);
+        console.log(`✅ [UPLOAD] Cloudinary upload OK: ${result.secure_url}`);
         resolve(result.secure_url);
       }
     );

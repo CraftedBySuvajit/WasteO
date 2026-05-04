@@ -1,9 +1,9 @@
 /*
-  SustainX Smart Dustbin Alert System
+  WasteO Smart Dustbin Alert System
   ESP32 IoT Client Example
   
   Description:
-  Sends a POST request to the SustainX backend when the dustbin level
+  Sends a POST request to the WasteO backend when the dustbin level
   (simulated or measured via Ultrasonic sensor) reaches >= 80%.
   No authentication required — the endpoint is public.
 */

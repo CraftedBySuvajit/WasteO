@@ -3,10 +3,11 @@
   "version": "1.0.0",
   "scripts": {
     "install-all": "npm install && npm install --prefix server && npm install --prefix client",
-    "server": "cd server && npm run dev",
-    "client": "cd client && npm run dev",
-    "dev": "concurrently \"npm run server\" \"npm run client\"",
-    "seed": "cd server && node seed.js"
+    "server": "npm run dev --prefix server",
+    "client": "npm run dev --prefix client",
+    "dev": "concurrently -n \"server,client\" -c \"bgBlue,bgGreen\" \"npm run server\" \"npm run client\"",
+    "seed": "npm run seed --prefix server",
+    "migrate": "npm run migrate --prefix server"
   },
   "devDependencies": {
     "concurrently": "^8.2.2"
