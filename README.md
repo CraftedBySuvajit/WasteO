@@ -112,6 +112,21 @@ npm run dev
 
 ---
 
+## ▲ Vercel Deployment (Fix for 404 NOT_FOUND)
+
+If Vercel shows `404: NOT_FOUND`, deploy the repo with these settings:
+
+1. Import repository: `https://github.com/Suvajit-Code/WasteO.git`
+2. Root Directory: project root (`.`)
+3. Build Command: `npm run build`
+4. Output Directory: `client/dist`
+
+This repository now includes `vercel.json` with SPA rewrite support so React routes work correctly after refresh.
+
+After changing settings, click **Redeploy** in Vercel.
+
+---
+
 ## ✅ Verified Run Guide (Windows, May 2026)
 
 These steps were checked against the current codebase.
