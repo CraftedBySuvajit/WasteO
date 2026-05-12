@@ -74,12 +74,14 @@ export default function AuthPage() {
     try {
       await login(normalizedEmail, loginPass, selectedRole);
     } catch (err) {
-      const status = err.response?.status;
-      const msg = err.response?.data?.message || err.message || 'Login failed';
-      
-      if (status === 405) {
-        setError('❌ Deployment Error: Method Not Allowed (405). Check your Vercel/Hosting routing configuration.');
-      } else if (msg === 'Network Error') {
+      const response = err.response;
+      const status = response?.status;
+      const msg = response?.data?.message || err.message || 'Login failed';
+
+      // Check if the response is actually HTML (common cause of JSON parse error)
+      if (status === 405 || (typeof response?.data === 'string' && response.data.startsWith('<!DOCTYPE'))) {
+        setError('❌ API Routing Error: The server returned HTML instead of JSON. Check your Vercel deployment settings.');
+      } else if (msg === 'Network Error' || msg.includes('json')) {
         setError('⚠️ Network Error: Cannot reach server. Verify your API BASE_URL.');
       } else {
         setError(msg);
@@ -120,7 +122,8 @@ export default function AuthPage() {
         email: normalizedEmail, 
         dept: suDept, 
         password: suPass,
-        role: 'student'
+        role: 'student',
+        block: 'A' // Default block for new student registrations
       });
       showToast('🎉 100 Points Credited! Welcome Bonus!', 'success', 5000);
       // Usually the register function in AuthContext redirects or updates state

@@ -4,6 +4,7 @@ const bcrypt = require('bcryptjs');
 
 const cleanUser = (user) => {
   const obj = user.toObject ? user.toObject() : { ...user };
+  obj.id = String(obj._id);
   delete obj.password;
   return obj;
 };

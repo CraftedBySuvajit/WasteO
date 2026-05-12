@@ -209,7 +209,8 @@ a {
 }
 
 a:hover {
-  text-decoration: underline;
+  text-decoration: none;
+  color: var(--clr-green);
 }
 
 /* ── Buttons ──────────────────────────────────────────────── */
@@ -2064,7 +2065,7 @@ tbody td {
   font-weight: 700;
   cursor: pointer;
   padding: 0;
-  text-decoration: underline;
+  text-decoration: none;
   font-family: inherit;
 }
 

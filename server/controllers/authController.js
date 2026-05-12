@@ -4,6 +4,7 @@ const User = require('../models/User');
 
 const cleanUser = (user) => {
   const obj = user.toObject ? user.toObject() : { ...user };
+  obj.id = String(obj._id);
   delete obj.password;
   return obj;
 };
@@ -58,6 +59,7 @@ const register = async (req, res) => {
   try {
     const { name, email, password, dept, block, role } = req.body;
     const normalizedEmail = String(email || '').toLowerCase().trim();
+    console.log(`📝 Registration attempt: ${normalizedEmail}`);
     const normalizedRole = role || 'student';
 
     if (!name || !normalizedEmail || !password) {
