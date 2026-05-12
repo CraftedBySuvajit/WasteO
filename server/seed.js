@@ -15,7 +15,7 @@ const generateUsers = async () => {
 
   users.push({ name: 'System Admin', email: 'admin@edu.in', password: hashedPassword, role: 'admin', block: 'A', reward_points: 100 });
 
-  for (let i = 1; i <= 25; i++) {
+  for (let i = 1; i <= 40; i++) {
     users.push({
       name: `Student ${i}`,
       email: `student${i}@edu.in`,
@@ -27,7 +27,7 @@ const generateUsers = async () => {
     });
   }
 
-  for (let i = 1; i <= 12; i++) {
+  for (let i = 1; i <= 15; i++) {
     users.push({
       name: `Collector ${i}`,
       email: `collector${i}@edu.in`,
@@ -88,10 +88,10 @@ const seedDatabase = async () => {
 
     // ── More Rewards & Notifications ──
     console.log('✨ Seeding rewards and notifications...');
-    for (let i = 0; i < 10; i++) {
+    for (let i = 0; i < 20; i++) {
       const target = allStudents[i % allStudents.length];
-      await Reward.create({ user_id: target._id, activity: 'Campus Cleanup Participation', points: 50 });
-      await Notification.create({ user_id: target._id, message: 'You earned 50 points for participating in cleanup!', type: 'reward' });
+      await Reward.create({ user_id: target._id, activity: ['Campus Cleanup', 'Plastic Recycling', 'Expert Reporting', 'Health Webinar'][i % 4], points: (i + 1) * 10 });
+      await Notification.create({ user_id: target._id, message: `You earned ${(i + 1) * 10} points for environmental contributions!`, type: 'reward' });
     }
 
     // ── More Complaints ──
@@ -100,11 +100,27 @@ const seedDatabase = async () => {
       console.log('✨ Seeding multiple complaints across blocks...');
       const complaintTemplates = [
         { loc: 'Canteen Backside', type: 'organic', desc: 'Leftover food waste causing bad smell.' },
-        { loc: 'Main Library Entrance', type: 'plastic', desc: 'Empty water bottles scattered near the steps.' },
+        { loc: 'Main Library Entrance', type: 'plastic', desc: 'Empty water bottles scattered near the steps.', image: 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?w=400' },
         { loc: 'Block B Laboratory', type: 'hazardous', desc: 'Chemical waste containers left unattended.' },
         { loc: 'Auditorium Garden', type: 'paper', desc: 'Event flyers and paper waste after the seminar.' },
         { loc: 'Hostel A Gate', type: 'metal', desc: 'Construction scrap blocking the walkway.' },
-        { loc: 'Sports Ground', type: 'plastic', desc: 'Plastic wrappers after the match.' },
+        { loc: 'Sports Ground', type: 'plastic', desc: 'Plastic wrappers after the match.', image: 'https://images.unsplash.com/photo-1595273670150-db0a3bf44244?w=400' },
+        { loc: 'Admin Block Stairs', type: 'paper', desc: 'Shredded documents found outside bin.' },
+        { loc: 'Parking Zone 2', type: 'metal', desc: 'Rusty car parts dumped illegally.' },
+        { loc: 'Cafeteria Kitchen', type: 'organic', desc: 'Expired produce bins overflowing.' },
+        { loc: 'Gym Entrance', type: 'plastic', desc: 'Disposable masks and energy drink bottles.' },
+        { 
+          loc: 'Central Fountain', 
+          type: 'hazardous', 
+          desc: 'Old battery pack found leaking near water source.',
+          ai_results: { label: 'Hazardous Waste', confidence: 0.99, detected_items: ['battery', 'acid'] }
+        },
+        { 
+          loc: 'Block D Workshop', 
+          type: 'metal', 
+          desc: 'Leftover metal shavings from machining project.',
+          ai_results: { label: 'Scrap Metal', confidence: 0.91, detected_items: ['aluminum', 'shavings'] }
+        },
         { 
           loc: 'Academic Block C', 
           type: 'plastic', 
@@ -121,11 +137,11 @@ const seedDatabase = async () => {
         },
       ];
 
-      for (let i = 0; i < 15; i++) {
+      for (let i = 0; i < 30; i++) {
         const temp = complaintTemplates[i % complaintTemplates.length];
         const stu = allStudents[i % allStudents.length];
         const block = ['A', 'B', 'C', 'D'][i % 4];
-        const status = ['pending', 'in-progress', 'completed', 'rejected'][i % 4];
+        const status = ['pending', 'in-progress', 'completed', 'rejected', 'pending'][i % 5];
         
         const complaint = await Complaint.create({
           complaint_id: `C-${Date.now()}-${i}`,
@@ -190,6 +206,12 @@ const seedDatabase = async () => {
         { bin_id: 'BIN-A-2', block: 'A', level: 95 },
         { bin_id: 'BIN-D-1', block: 'D', level: 10 },
         { bin_id: 'BIN-B-2', block: 'B', level: 85 },
+        { bin_id: 'BIN-C-2', block: 'C', level: 55 },
+        { bin_id: 'BIN-D-2', block: 'D', level: 30 },
+        { bin_id: 'BIN-A-3', block: 'A', level: 15 },
+        { bin_id: 'BIN-B-3', block: 'B', level: 45 },
+        { bin_id: 'BIN-C-3', block: 'C', level: 92 },
+        { bin_id: 'BIN-E-1', block: 'E', level: 60 },
       ];
       await BinData.insertMany(bins);
       console.log(`✅ Seeded ${bins.length} bin telemetry entries`);

@@ -74,7 +74,16 @@ export default function AuthPage() {
     try {
       await login(normalizedEmail, loginPass, selectedRole);
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      const status = err.response?.status;
+      const msg = err.response?.data?.message || err.message || 'Login failed';
+      
+      if (status === 405) {
+        setError('❌ Deployment Error: Method Not Allowed (405). Check your Vercel/Hosting routing configuration.');
+      } else if (msg === 'Network Error') {
+        setError('⚠️ Network Error: Cannot reach server. Verify your API BASE_URL.');
+      } else {
+        setError(msg);
+      }
     } finally {
       setLoading(false);
     }
@@ -86,7 +95,7 @@ export default function AuthPage() {
     
     const normalizedEmail = suEmail ? suEmail.trim().toLowerCase() : '';
     
-    if (!suName || !normalizedEmail || !suPass) {
+    if (!suName || !normalizedEmail || !suPass || !suConfirm) {
       setError('Please fill in all required fields (Name, Email, and Password).');
       return;
     }
@@ -110,7 +119,8 @@ export default function AuthPage() {
         name: suName, 
         email: normalizedEmail, 
         dept: suDept, 
-        password: suPass
+        password: suPass,
+        role: 'student'
       });
       showToast('🎉 100 Points Credited! Welcome Bonus!', 'success', 5000);
       // Usually the register function in AuthContext redirects or updates state

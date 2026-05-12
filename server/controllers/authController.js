@@ -23,18 +23,22 @@ const buildAuthResponse = (user) => ({
 const login = async (req, res) => {
   try {
     const { email, password, role } = req.body;
+    const cleanEmail = String(email || '').toLowerCase().trim();
+    console.log(`[AUTH] Login attempt: ${cleanEmail} | Role: ${role}`);
 
-    if (!email || !password) {
+    if (!cleanEmail || !password) {
       return res.status(400).json({ message: 'Please provide email and password' });
     }
 
-    const user = await User.findOne({ email: String(email).toLowerCase().trim() }).select('+password');
+    const user = await User.findOne({ email: cleanEmail }).select('+password');
 
     if (!user) {
+      console.warn(`[AUTH] Login failed: User not found (${cleanEmail})`);
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
     if (role && user.role !== role) {
+      console.warn(`[AUTH] Role mismatch: User ${cleanEmail} is ${user.role}, tried ${role}`);
       return res.status(403).json({ message: `This account is registered as ${user.role}` });
     }
 
