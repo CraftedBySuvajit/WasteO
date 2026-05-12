@@ -123,18 +123,18 @@ app.use((err, req, res, next) => {
 
 const PORT = process.env.PORT || 5000;
 
-if (require.main === module || !process.env.VERCEL) {
-  const start = async () => {
-    try {
-      await connectMongo();
-      console.log('✅ MongoDB connected');
+const start = async () => {
+  try {
+    await connectMongo();
+    console.log('✅ MongoDB connected');
+    if (require.main === module || !process.env.VERCEL) {
       app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
-    } catch (err) {
-      console.error('❌ Failed to start server:', err.message);
-      if (!process.env.VERCEL) process.exit(1);
     }
-  };
-  start();
-}
+  } catch (err) {
+    console.error('❌ Failed to start server:', err.message);
+    if (!process.env.VERCEL) process.exit(1);
+  }
+};
+start();
 
 module.exports = app;
