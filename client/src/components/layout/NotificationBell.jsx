@@ -65,9 +65,9 @@ export default function NotificationBell() {
   const handleMarkRead = async (notification) => {
     if (notification.isRead) return;
     try {
-      await markNotificationRead(notification._id);
+      await markNotificationRead(notification.id);
       setNotifications(prev => 
-        prev.map(n => n._id === notification._id ? { ...n, isRead: true } : n)
+        prev.map(n => n.id === notification.id ? { ...n, isRead: true } : n)
       );
     } catch (err) {
       console.error('Error marking as read:', err);
@@ -108,7 +108,7 @@ export default function NotificationBell() {
             ) : (
               notifications.map(n => (
                 <NotificationItem 
-                  key={n._id} 
+                  key={n.id} 
                   notification={n} 
                   onClick={handleMarkRead}
                 />

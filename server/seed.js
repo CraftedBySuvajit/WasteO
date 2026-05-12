@@ -6,6 +6,7 @@ const Reward = require('./models/Reward');
 const Complaint = require('./models/Complaint');
 const Notification = require('./models/Notification');
 const BinData = require('./models/BinData');
+const Order = require('./models/Order');
 const bcrypt = require('bcryptjs');
 
 const generateUsers = async () => {
@@ -14,7 +15,7 @@ const generateUsers = async () => {
 
   users.push({ name: 'System Admin', email: 'admin@edu.in', password: hashedPassword, role: 'admin', block: 'A', reward_points: 100 });
 
-  for (let i = 1; i <= 15; i++) {
+  for (let i = 1; i <= 25; i++) {
     users.push({
       name: `Student ${i}`,
       email: `student${i}@edu.in`,
@@ -26,7 +27,7 @@ const generateUsers = async () => {
     });
   }
 
-  for (let i = 1; i <= 10; i++) {
+  for (let i = 1; i <= 12; i++) {
     users.push({
       name: `Collector ${i}`,
       email: `collector${i}@edu.in`,
@@ -60,9 +61,16 @@ const seedDatabase = async () => {
     const existingStoreCount = await StoreItem.countDocuments();
     if (existingStoreCount === 0) {
       const items = [
-        { name: 'Reusable Bottle', description: '500ml stainless bottle', image: '/images/bottle.jpg', points_required: 300, stock: 20, category: 'accessories' },
-        { name: 'Recycled Notebook', description: 'A5 notebook from recycled paper', image: '/images/notebook.jpg', points_required: 150, stock: 50, category: 'stationery' },
-        { name: 'Plant Sapling', description: 'Native sapling for campus planting', image: '/images/plant.jpg', points_required: 200, stock: 30, category: 'garden' },
+        { name: 'Reusable Bottle', description: '500ml stainless steel vacuum flask.', image: 'https://images.unsplash.com/photo-1602143307185-8a1550552844?w=400', points_required: 300, stock: 20, category: 'accessories' },
+        { name: 'Recycled Notebook', description: 'Eco-friendly A5 notebook from recycled paper.', image: 'https://images.unsplash.com/photo-1531346878377-a5be20888e57?w=400', points_required: 150, stock: 50, category: 'stationery' },
+        { name: 'Plant Sapling', description: 'Native sapling for campus planting.', image: 'https://images.unsplash.com/photo-1592150621344-22d50897be4d?w=400', points_required: 200, stock: 30, category: 'garden' },
+        { name: 'Bamboo Toothbrush', description: 'Biodegradable bamboo handle with soft bristles.', image: 'https://images.unsplash.com/photo-1607613009820-a29f7bb81c04?w=400', points_required: 50, stock: 100, category: 'accessories' },
+        { name: 'Canvas Tote Bag', description: 'Heavy duty reusable canvas bag for shopping.', image: 'https://images.unsplash.com/photo-1591339021151-692795f54366?w=400', points_required: 120, stock: 40, category: 'accessories' },
+        { name: 'Solar Keychain Light', description: 'Small LED light charged via solar panel.', image: 'https://images.unsplash.com/photo-1589578228447-e1a4e481c6c8?w=400', points_required: 250, stock: 15, category: 'electronics' },
+        { name: 'Metal Straw Set', description: 'Set of 4 straws with cleaning brush.', image: 'https://images.unsplash.com/photo-1594911772125-07fc7a2d8d9f?w=400', points_required: 80, stock: 60, category: 'kitchen' },
+        { name: 'Compost Bin (Home)', description: 'Small kitchen compost bin for organic waste.', image: 'https://images.unsplash.com/photo-1591799264318-7e6ef8ddb7ea?w=400', points_required: 500, stock: 10, category: 'garden' },
+        { name: 'Recycled Pens (Pack of 5)', description: 'Pens made from recycled ocean plastic.', image: 'https://images.unsplash.com/photo-1585336139118-132f7f21503e?w=400', points_required: 60, stock: 80, category: 'stationery' },
+        { name: 'Seed Paper Cards', description: 'Cards you can plant after use.', image: 'https://images.unsplash.com/photo-1606144042614-b2417e99c4e3?w=400', points_required: 100, stock: 45, category: 'stationery' },
       ];
       await StoreItem.insertMany(items);
       console.log(`✅ Seed store items: inserted ${items.length} items.`);
@@ -75,38 +83,85 @@ const seedDatabase = async () => {
     const admin = await User.findOne({ email: 'admin@edu.in' });
     const student = await User.findOne({ email: 'student1@edu.in' });
     const collector = await User.findOne({ email: 'collector1@edu.in' });
+    const allStudents = await User.find({ role: 'student' });
+    const allCollectors = await User.find({ role: 'collector' });
 
-    if (student) {
-      const existingRewards = await Reward.find({ user_id: student._id }).limit(1);
-      if (existingRewards.length === 0) {
-        await Reward.create({ user_id: student._id, activity: 'Welcome bonus', points: 100 });
-        await Notification.create({ user_id: student._id, message: 'Welcome to WasteO! You earned 100 points.', type: 'reward' });
-        console.log('✅ Seed reward/notification for student1');
-      }
+    // ── More Rewards & Notifications ──
+    console.log('✨ Seeding rewards and notifications...');
+    for (let i = 0; i < 10; i++) {
+      const target = allStudents[i % allStudents.length];
+      await Reward.create({ user_id: target._id, activity: 'Campus Cleanup Participation', points: 50 });
+      await Notification.create({ user_id: target._id, message: 'You earned 50 points for participating in cleanup!', type: 'reward' });
     }
 
-    if (collector) {
-      const existingNotifications = await Notification.find({ user_id: collector._id }).limit(1);
-      if (existingNotifications.length === 0) {
-        await Notification.create({ user_id: collector._id, message: 'Collector account active — check assigned pickups.', type: 'info' });
-        console.log('✅ Seed notification for collector1');
-      }
-    }
-
-    // Sample complaint
+    // ── More Complaints ──
     const existingComplaints = await Complaint.countDocuments();
-    if (existingComplaints === 0 && student) {
-      await Complaint.create({
-        complaint_id: `C-${Date.now()}`,
-        user_id: student._id,
-        location: 'Canteen area',
-        waste_type: 'plastic',
-        description: 'Overflowing plastic waste near canteen',
-        block: 'A',
-        image: '',
-        status_history: [{ status: 'pending', note: 'New complaint', timestamp: new Date() }],
-      });
-      console.log('✅ Seed sample complaint');
+    if (existingComplaints < 5) {
+      console.log('✨ Seeding multiple complaints across blocks...');
+      const complaintTemplates = [
+        { loc: 'Canteen Backside', type: 'organic', desc: 'Leftover food waste causing bad smell.' },
+        { loc: 'Main Library Entrance', type: 'plastic', desc: 'Empty water bottles scattered near the steps.' },
+        { loc: 'Block B Laboratory', type: 'hazardous', desc: 'Chemical waste containers left unattended.' },
+        { loc: 'Auditorium Garden', type: 'paper', desc: 'Event flyers and paper waste after the seminar.' },
+        { loc: 'Hostel A Gate', type: 'metal', desc: 'Construction scrap blocking the walkway.' },
+        { loc: 'Sports Ground', type: 'plastic', desc: 'Plastic wrappers after the match.' },
+      ];
+
+      for (let i = 0; i < 15; i++) {
+        const temp = complaintTemplates[i % complaintTemplates.length];
+        const stu = allStudents[i % allStudents.length];
+        const block = ['A', 'B', 'C', 'D'][i % 4];
+        const status = ['pending', 'in-progress', 'completed', 'rejected'][i % 4];
+        
+        const complaint = await Complaint.create({
+          complaint_id: `C-${Date.now()}-${i}`,
+          user_id: stu._id,
+          location: temp.loc,
+          waste_type: temp.type,
+          description: temp.desc,
+          block: block,
+          status: status,
+          assignedTo: status !== 'pending' ? allCollectors.find(c => c.block === block)?._id : null,
+          status_history: [{ status: 'pending', note: 'Initial report', timestamp: new Date() }],
+        });
+
+        if (status === 'completed') {
+          await Reward.create({ user_id: stu._id, activity: 'Waste Reporting Reward', points: 10 });
+        }
+      }
+    }
+
+    // ── Store Orders (Redemptions) ──
+    const existingOrders = await Order.countDocuments();
+    if (existingOrders === 0) {
+      console.log('✨ Seeding marketplace orders...');
+      const storeItemsList = await StoreItem.find();
+      if (storeItemsList.length > 0) {
+        for (let i = 0; i < 8; i++) {
+          const stu = allStudents[i % allStudents.length];
+          const item = storeItemsList[i % storeItemsList.length];
+          const status = ['pending', 'approved', 'ready_for_pickup', 'delivered'][i % 4];
+          
+          await Order.create({
+            orderId: `ORD-${Math.random().toString(36).substr(2, 9).toUpperCase()}`,
+            user: stu._id,
+            userName: stu.name,
+            itemName: item.name,
+            pointsUsed: item.pointsRequired,
+            status: status,
+            pickupLocation: 'Main Admin Office',
+            pickupTime: '10:00 AM - 04:00 PM',
+            pickupCode: Math.random().toString(36).substr(2, 6).toUpperCase(),
+            assignedTo: status !== 'pending' ? allCollectors[0]._id : null
+          });
+
+          await Notification.create({
+            user_id: stu._id,
+            message: `Order for ${item.name} is now ${status.replace(/_/g, ' ')}.`,
+            type: 'info'
+          });
+        }
+      }
     }
 
     // Sample bin data
@@ -116,6 +171,9 @@ const seedDatabase = async () => {
         { bin_id: 'BIN-A-1', block: 'A', level: 80 },
         { bin_id: 'BIN-B-1', block: 'B', level: 40 },
         { bin_id: 'BIN-C-1', block: 'C', level: 20 },
+        { bin_id: 'BIN-A-2', block: 'A', level: 95 },
+        { bin_id: 'BIN-D-1', block: 'D', level: 10 },
+        { bin_id: 'BIN-B-2', block: 'B', level: 85 },
       ];
       await BinData.insertMany(bins);
       console.log(`✅ Seeded ${bins.length} bin telemetry entries`);

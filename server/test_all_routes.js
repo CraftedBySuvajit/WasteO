@@ -42,7 +42,16 @@ const main = async () => {
   };
 
   count((await call('GET /api', '', {}, [200])).ok);
-  count((await call('GET /api/health', '/health', {}, [200])).ok);
+
+  const health = await call('GET /api/health', '/health', {}, [200]);
+  if (health.ok) {
+    const dbStatus = health.body?.db?.connected;
+    console.log(`${dbStatus ? '✅' : '❌'} Database Connection Status: ${dbStatus ? 'Connected' : 'Disconnected'}`);
+    count(dbStatus === true);
+  } else {
+    count(false);
+  }
+
   count((await call('GET /api/iot/data', '/iot/data', {}, [200, 500, 503])).ok);
 
   count((await call('POST /api/auth/login (negative)', '/auth/login', {

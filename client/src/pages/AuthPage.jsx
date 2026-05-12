@@ -5,6 +5,12 @@ import ThemeToggle from '../components/ui/ThemeToggle';
 import Modal from '../components/ui/Modal';
 import { forgotPasswordApi } from '../services/api';
 
+const demoCredentials = {
+  student: { email: 'student1@edu.in', password: '12345678' },
+  collector: { email: 'collector1@edu.in', password: '12345678' },
+  admin: { email: 'admin@edu.in', password: '12345678' },
+};
+
 export default function AuthPage() {
   const { login, register } = useAuth();
   const { showToast } = useToast();
@@ -33,12 +39,15 @@ export default function AuthPage() {
   const [forgotSuccess, setForgotSuccess] = useState('');
   const [forgotError, setForgotError] = useState('');
 
-  // Removed auto-fill demo credentials
+  // Auto-fill demo credentials whenever role or tab changes to login
   useEffect(() => {
     if (activeTab === 'login') {
-      setLoginEmail('');
-      setLoginPass('');
-      setError('');
+      const creds = demoCredentials[selectedRole];
+      if (creds) {
+        setLoginEmail(creds.email);
+        setLoginPass(creds.password);
+        setError(''); // Clear errors when switching roles
+      }
     }
   }, [selectedRole, activeTab]);
 
@@ -71,37 +80,16 @@ export default function AuthPage() {
     }
   };
 
-  const demoCredentials = {
-    student: { email: 'student1@edu.in', password: '12345678' },
-    collector: { email: 'collector1@edu.in', password: '12345678' },
-    admin: { email: 'admin@edu.in', password: '12345678' },
-  };
-
-  const handleDemoLogin = async (role) => {
-    setError('');
-    const creds = demoCredentials[role];
-    if (!creds) return;
-    setSelectedRole(role);
-    setLoginEmail(creds.email);
-    setLoginPass(creds.password);
-    setLoading(true);
-    try {
-      await login(creds.email, creds.password, role);
-    } catch (err) {
-      setError(err.response?.data?.message || 'Demo login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
   const handleStudentSignup = async (e) => {
     e.preventDefault();
     setError('');
-    if (!suName || !suEmail || !suPass || !suConfirm) {
+    const normalizedEmail = suEmail.trim().toLowerCase();
+    
+    if (!suName || !normalizedEmail || !suPass || !suConfirm) {
       setError('Please fill in all required fields (Name, Email, and Password).');
       return;
     }
-    if (!/^[^@]+@[^@]+\.[^@]+$/.test(suEmail)) {
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError('Please enter a valid email address.');
       return;
     }
@@ -117,11 +105,13 @@ export default function AuthPage() {
     try {
       await register({ 
         name: suName, 
-        email: suEmail, 
+        email: normalizedEmail, 
         dept: suDept, 
         password: suPass
       });
       showToast('🎉 100 Points Credited! Welcome Bonus!', 'success', 5000);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {
       setLoading(false);
     }
@@ -222,14 +212,9 @@ export default function AuthPage() {
                 <h1 className="auth-title">Welcome Back 👋</h1>
                 <p className="auth-hint">Sign in with your campus credentials</p>
 
-                {error && <div className="auth-error">{error}</div>}
+                <div className={`auth-error ${error ? 'show' : ''}`}>{error}</div>
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '.95rem' }}>
-                    <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
-                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('student')}>Demo Student</button>
-                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('collector')}>Demo Collector</button>
-                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('admin')}>Demo Admin</button>
-                    </div>
                   <div className="form-group">
                     <label className="form-label">Email Address</label>
                     <div className="input-icon-wrap">
@@ -281,7 +266,7 @@ export default function AuthPage() {
                 <h1 className="auth-title">Join WasteO 🌱</h1>
                 <p className="auth-hint">Create your student account — it's free</p>
 
-                {error && <div className="auth-error">{error}</div>}
+                <div className={`auth-error ${error ? 'show' : ''}`}>{error}</div>
 
                 <form onSubmit={handleStudentSignup} noValidate style={{ display: 'flex', flexDirection: 'column', gap: '.85rem' }}>
                   <div className="form-group">

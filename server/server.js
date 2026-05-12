@@ -71,23 +71,38 @@ app.use('/api/notifications', notificationRoutes);
 app.get('/', (req, res) => res.send('🚀 WasteO Backend Running Successfully'));
 app.get('/api', (req, res) => res.send('🚀 WasteO API is running successfully...'));
 app.get('/api/health', async (req, res) => {
-  const cloudinary = require('./config/cloudinary');
-  const cfg = cloudinary.config();
+  let cloudinaryStatus = { configured: false };
+  try {
+    const cloudinary = require('./config/cloudinary');
+    const cfg = cloudinary.config();
+    cloudinaryStatus = {
+      configured: !!(cfg.cloud_name && cfg.api_key && cfg.api_secret),
+      cloud_name: cfg.cloud_name || 'MISSING',
+      api_key: cfg.api_key ? '***' + cfg.api_key.slice(-4) : 'MISSING',
+      api_secret: cfg.api_secret ? '***' + cfg.api_secret.slice(-4) : 'MISSING',
+    };
+  } catch (err) {
+    cloudinaryStatus.error = 'Cloudinary config not found';
+  }
+
+  let multerVersion = 'unknown';
+  try {
+    multerVersion = require('multer/package.json').version;
+  } catch (err) {
+    // ignore
+  }
+
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
     db: {
       configured: Boolean(process.env.MONGO_URI),
       connected: mongoose.connection.readyState === 1,
-      error: mongoose.connection.readyState === 1 ? null : 'MongoDB not connected yet',
+      state: mongoose.connection.readyState,
+      error: mongoose.connection.readyState === 1 ? null : 'MongoDB not connected',
     },
-    cloudinary: {
-      configured: !!(cfg.cloud_name && cfg.api_key && cfg.api_secret),
-      cloud_name: cfg.cloud_name || 'MISSING',
-      api_key: cfg.api_key ? '***' + cfg.api_key.slice(-4) : 'MISSING',
-      api_secret: cfg.api_secret ? '***' + cfg.api_secret.slice(-4) : 'MISSING',
-    },
-    multer: require('multer/package.json').version,
+    cloudinary: cloudinaryStatus,
+    multer: multerVersion,
   });
 });
 

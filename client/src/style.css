@@ -1808,14 +1808,6 @@ tbody td {
   }
 }
 
-/* ── Auth Page (Login/Signup) ────────────────────────────── */
-.auth-page {
-  min-height: 100vh;
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  background: var(--bg-page);
-}
-
 .auth-visual {
   background: linear-gradient(160deg, var(--bg-sidebar) 0%, #1A3A1A 50%, #0D1F0D 100%);
   display: flex;
@@ -1966,6 +1958,137 @@ tbody td {
   .auth-visual {
     display: none;
   }
+}
+
+/* ── Auth Selector & Tabs ────────────────────────────────── */
+.role-selector {
+  display: flex;
+  gap: .75rem;
+  margin-bottom: 1.5rem;
+  background: var(--bg-input);
+  padding: .4rem;
+  border-radius: var(--r-md);
+}
+
+.role-btn {
+  flex: 1;
+  padding: .65rem;
+  border: none;
+  background: transparent;
+  color: var(--txt-secondary);
+  font-family: var(--font-heading);
+  font-weight: 600;
+  font-size: .85rem;
+  cursor: pointer;
+  border-radius: var(--r-sm);
+  transition: all var(--t-fast);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: .4rem;
+}
+
+.role-btn:hover {
+  background: rgba(0,0,0,.03);
+  color: var(--txt-primary);
+}
+
+.role-btn.active {
+  background: var(--bg-card);
+  color: var(--clr-green);
+  box-shadow: var(--shadow-sm);
+}
+
+.auth-tabs {
+  margin-bottom: 1.8rem;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  gap: 1.5rem;
+}
+
+.auth-tab {
+  padding: .8rem 0;
+  border: none;
+  background: transparent;
+  color: var(--txt-muted);
+  font-weight: 700;
+  font-size: .95rem;
+  cursor: pointer;
+  position: relative;
+  transition: color var(--t-fast);
+}
+
+.auth-tab.active {
+  color: var(--clr-green);
+}
+
+.auth-tab.active::after {
+  content: '';
+  position: absolute;
+  bottom: -1px;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: var(--clr-green);
+}
+
+.pass-toggle {
+  position: absolute;
+  right: .9rem;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: .5;
+  font-size: 1.1rem;
+  transition: opacity var(--t-fast);
+  z-index: 5;
+}
+
+.pass-toggle:hover {
+  opacity: 1;
+}
+
+.auth-switch-text {
+  text-align: center;
+  margin-top: 1.5rem;
+  font-size: .88rem;
+  color: var(--txt-secondary);
+}
+
+.auth-switch-text button {
+  background: none;
+  border: none;
+  color: var(--clr-blue);
+  font-weight: 700;
+  cursor: pointer;
+  padding: 0;
+  text-decoration: underline;
+  font-family: inherit;
+}
+
+.auth-footer-bar {
+  margin-top: 2rem;
+  padding-top: 1rem;
+  border-top: 1px solid var(--border);
+  font-size: .72rem;
+  color: var(--txt-muted);
+  text-align: center;
+  letter-spacing: .02em;
+}
+
+.auth-bubbles {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.auth-bubble {
+  position: absolute;
+  background: rgba(145, 208, 108, 0.05);
+  border-radius: 50%;
 }
 
 /* ── Order Tracking UI ────────────────────────────────────── */
