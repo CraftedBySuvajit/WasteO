@@ -105,6 +105,20 @@ const seedDatabase = async () => {
         { loc: 'Auditorium Garden', type: 'paper', desc: 'Event flyers and paper waste after the seminar.' },
         { loc: 'Hostel A Gate', type: 'metal', desc: 'Construction scrap blocking the walkway.' },
         { loc: 'Sports Ground', type: 'plastic', desc: 'Plastic wrappers after the match.' },
+        { 
+          loc: 'Academic Block C', 
+          type: 'plastic', 
+          desc: 'Automated detection: Multiple plastic bottles found.', 
+          image: 'https://images.unsplash.com/photo-1611284446314-60a58ac0deb9?w=400', 
+          ai_results: { label: 'Plastic Bottles', confidence: 0.98, detected_items: ['bottle', 'bottle', 'wrapper'] } 
+        },
+        { 
+          loc: 'North Parking Lot', 
+          type: 'paper', 
+          desc: 'AI Alert: High density of paper waste detected.', 
+          image: 'https://images.unsplash.com/photo-1595273670150-db0a3bf44244?w=400', 
+          ai_results: { label: 'Paper Waste', confidence: 0.94, detected_items: ['cardboard', 'paper'] } 
+        },
       ];
 
       for (let i = 0; i < 15; i++) {
@@ -120,6 +134,8 @@ const seedDatabase = async () => {
           waste_type: temp.type,
           description: temp.desc,
           block: block,
+          image: temp.image || null,
+          ai_results: temp.ai_results || null,
           status: status,
           assignedTo: status !== 'pending' ? allCollectors.find(c => c.block === block)?._id : null,
           status_history: [{ status: 'pending', note: 'Initial report', timestamp: new Date() }],
