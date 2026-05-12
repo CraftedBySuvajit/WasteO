@@ -134,6 +134,23 @@ export default function StudentDashboard() {
     } catch { /* ignore */ }
   }, [user._id]);
 
+  const loadStore = async () => {
+    try {
+      const res = await getStoreItems();
+      setStoreItems(res.data);
+    } catch { /* ignore */ }
+  };
+
+  const loadOrders = async () => {
+    try {
+      setIsOrdersLoading(true);
+      const res = await getOrders();
+      setMyOrders(res.data);
+    } catch { /* ignore */ } finally {
+      setIsOrdersLoading(false);
+    }
+  };
+
   useEffect(() => {
     loadProfile();
     loadHistory();
@@ -156,23 +173,6 @@ export default function StudentDashboard() {
     const timer = setInterval(nextSlide, 5000);
     return () => clearInterval(timer);
   }, [nextSlide]);
-
-  const loadStore = async () => {
-    try {
-      const res = await getStoreItems();
-      setStoreItems(res.data);
-    } catch { /* ignore */ }
-  };
-
-  const loadOrders = async () => {
-    try {
-      setIsOrdersLoading(true);
-      const res = await getOrders();
-      setMyOrders(res.data);
-    } catch { /* ignore */ } finally {
-      setIsOrdersLoading(false);
-    }
-  };
 
   const [isRedeeming, setIsRedeeming] = useState(false);
   const handleRedeem = async (itemId) => {

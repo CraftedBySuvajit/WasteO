@@ -1,33 +1,36 @@
-const Notification = require('../models/Notification');
-const mongoose = require('mongoose');
+const supabase = require('../config/supabase');
+
+// Helper to map DB notification to frontend camelCase
+const mapNotification = (n) => {
+  if (!n) return null;
+  return {
+    id: n.id,
+    user: n.user_id,
+    message: n.message,
+    type: n.type,
+    isRead: n.is_read,
+    createdAt: n.created_at,
+    updatedAt: n.updated_at
+  };
+};
 
 // @desc    Get user notifications
 // @route   GET /api/notifications
-
 const getNotifications = async (req, res) => {
   try {
-    const rawId = req.user._id || req.user.id;
+    const userId = req.user.id;
     
-    // Ensure we have a valid ObjectId for the query
-    let userId;
-    try {
-      userId = new mongoose.Types.ObjectId(rawId.toString());
-    } catch (e) {
-      userId = rawId; // fallback
-    }
-
-    console.log('--- DEBUG NOTIFICATIONS ---');
-    console.log('Request User:', { id: req.user.id, _id: req.user._id, role: req.user.role });
-    console.log('Converted Query User ID:', userId);
-    
-    const notifications = await Notification.find({ user: userId })
-      .sort({ createdAt: -1 })
+    const { data: notifications, error } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
       .limit(50);
       
-    console.log('Found Count:', notifications.length);
-    console.log('---------------------------');
+    if (error) throw error;
 
-    res.json(notifications);
+    const mappedNotifications = notifications.map(n => mapNotification(n));
+    res.json(mappedNotifications);
   } catch (err) {
     console.error(`❌ [NOTIFICATIONS ERROR]: ${err.message}`);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -38,19 +41,27 @@ const getNotifications = async (req, res) => {
 // @route   PUT /api/notifications/read/:id
 const markAsRead = async (req, res) => {
   try {
-    const notification = await Notification.findById(req.params.id);
+    const { data: notification, error: fetchError } = await supabase
+      .from('notifications')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
 
-    if (!notification) {
+    if (fetchError || !notification) {
       return res.status(404).json({ message: 'Notification not found' });
     }
 
     // Ensure user owns the notification
-    if (notification.user.toString() !== req.user.id) {
+    if (notification.user_id !== req.user.id) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    notification.isRead = true;
-    await notification.save();
+    const { error: updateError } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('id', req.params.id);
+
+    if (updateError) throw updateError;
 
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
@@ -62,11 +73,16 @@ const markAsRead = async (req, res) => {
 // @route   PUT /api/notifications/read-all
 const markAllAsRead = async (req, res) => {
   try {
-    const userId = req.user._id || req.user.id;
-    await Notification.updateMany(
-      { user: userId, isRead: false },
-      { $set: { isRead: true } }
-    );
+    const userId = req.user.id;
+    
+    const { error } = await supabase
+      .from('notifications')
+      .update({ is_read: true })
+      .eq('user_id', userId)
+      .eq('is_read', false);
+
+    if (error) throw error;
+
     res.json({ message: 'All notifications marked as read' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -81,11 +97,16 @@ const createNotification = async (userId, message, type) => {
       return;
     }
     
-    await Notification.create({
-      user: userId,
-      message,
-      type
-    });
+    const { error } = await supabase
+      .from('notifications')
+      .insert([{
+        user_id: userId,
+        message,
+        type: type || 'info'
+      }]);
+
+    if (error) throw error;
+    
     console.log(`🔔 [NOTIFICATION] Created for user ${userId}: "${message}" (${type})`);
   } catch (err) {
     console.error('❌ [NOTIFICATION ERROR]:', err.message);

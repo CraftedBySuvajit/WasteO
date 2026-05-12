@@ -3,7 +3,6 @@ require('dotenv').config({ path: path.join(__dirname, '.env') });
 
 const express = require('express');
 const cors = require('cors');
-const connectDB = require('./config/db');
 
 // Route imports
 const authRoutes = require('./routes/authRoutes');
@@ -17,9 +16,7 @@ const iotRoutes = require('./routes/iotRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
-
-// ✅ Connect to MongoDB
-connectDB();
+// ✅ Supabase used (No connection call needed here as it's initialized on import in controllers)
 
 // ✅ CORS FIX (IMPORTANT)
 const allowedOrigins = [

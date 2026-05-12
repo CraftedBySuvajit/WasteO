@@ -1,31 +1,61 @@
-const Complaint = require('../models/Complaint');
-const User = require('../models/User');
+const supabase = require('../config/supabase');
 const { uploadToCloudinary } = require('../middleware/upload');
-const { createNotification } = require('./notificationController');
+
+// Helper to map DB complaint to frontend camelCase
+const mapComplaint = (c) => {
+  if (!c) return null;
+  return {
+    id: c.id,
+    complaintId: c.complaint_id,
+    user: c.user || c.user_id, // Might be populated object or just ID
+    location: c.location,
+    locationData: c.location_data,
+    wasteType: c.waste_type,
+    description: c.description,
+    block: c.block,
+    assignedTo: c.assignedTo || c.assigned_to, // Might be populated object or just ID
+    status: c.status,
+    rejectionReason: c.rejection_reason,
+    type: c.type,
+    binId: c.bin_id,
+    statusHistory: c.status_history,
+    image: c.image,
+    completionImage: c.completion_image,
+    rewardGiven: c.reward_given,
+    createdAt: c.created_at,
+    updatedAt: c.updated_at
+  };
+};
 
 // @desc    Get all complaints (with role-based filtering)
 // @route   GET /api/complaints
 const getComplaints = async (req, res) => {
   try {
     const { status } = req.query;
-    const query = {};
+    
+    // Start with selecting complaints and joining users for population
+    let query = supabase
+      .from('complaints')
+      .select('*, user:users!complaints_user_id_fkey(name, email), assignedTo:users!complaints_assigned_to_fkey(name)')
+      .order('created_at', { ascending: false });
 
-    if (status) query.status = status;
+    if (status) {
+      query = query.eq('status', status);
+    }
 
     // Role-based filtering
     if (req.user.role === 'student') {
-      query.user = req.user.id;
+      query = query.eq('user_id', req.user.id);
     } else if (req.user.role === 'collector') {
       // Collectors only see complaints in their assigned block
-      query.block = req.user.block;
+      query = query.eq('block', req.user.block);
     }
 
-    const complaints = await Complaint.find(query)
-      .populate('user', 'name email')
-      .populate('assignedTo', 'name')
-      .sort({ createdAt: -1 });
+    const { data: complaints, error } = await query;
+    if (error) throw error;
 
-    res.json(complaints);
+    const mappedComplaints = complaints.map(c => mapComplaint(c));
+    res.json(mappedComplaints);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -35,18 +65,18 @@ const getComplaints = async (req, res) => {
 // @route   GET /api/complaints/:id
 const getComplaintById = async (req, res) => {
   try {
-    const complaint = await Complaint.findOne({ complaintId: req.params.id.toUpperCase() })
-      .populate('user', 'name email')
-      .populate('assignedTo', 'name');
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .select('*, user:users!complaints_user_id_fkey(name, email), assignedTo:users!complaints_assigned_to_fkey(name)')
+      .eq('complaint_id', req.params.id.toUpperCase())
+      .single();
 
-    if (!complaint) {
+    if (error || !complaint) {
       return res.status(404).json({ message: 'Complaint not found' });
     }
 
-    // Security check — extract the raw userId whether populated or not
-    const complaintUserId = complaint.user?._id
-      ? complaint.user._id.toString()
-      : complaint.user?.toString();
+    // Security check
+    const complaintUserId = complaint.user_id;
 
     if (req.user.role === 'student' && complaintUserId !== req.user.id) {
       return res.status(403).json({ message: 'Not authorized' });
@@ -55,7 +85,7 @@ const getComplaintById = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to view other blocks' });
     }
 
-    res.json(complaint);
+    res.json(mapComplaint(complaint));
   } catch (err) {
     console.error("❌ [GET COMPLAINT]:", err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -75,60 +105,68 @@ const submitComplaint = async (req, res) => {
 
     // Handle image upload
     let imageUrl = null;
-    console.log(`📸 [SUBMIT] req.file present: ${!!req.file}`, req.file ? { fieldname: req.file.fieldname, mimetype: req.file.mimetype, size: req.file.size, hasBuffer: !!req.file.buffer } : 'NO FILE');
-
     if (req.file) {
       try {
         imageUrl = await uploadToCloudinary(req.file, 'wasteo/complaints');
-        console.log(`✅ [SUBMIT] Cloudinary URL: ${imageUrl}`);
       } catch (uploadErr) {
         console.error("❌ [SUBMIT] Cloudinary upload failed:", uploadErr.message);
-        // Continue without image rather than failing the whole complaint
       }
     }
 
     const complaintId = 'COMP-' + Date.now();
 
-    const complaint = await Complaint.create({
-      complaintId,
-      user: req.user.id,
-      location,
-      wasteType,
-      description,
-      block: block.toUpperCase(),
-      image: imageUrl,
-      type: type || 'complaint',
-      status: 'pending',
-      statusHistory: [
-        {
-          status: 'pending',
-          note: 'Complaint submitted',
-          updatedBy: req.user.id,
-          timestamp: new Date(),
-        },
-      ],
-    });
+    const { data: complaint, error } = await supabase
+      .from('complaints')
+      .insert([{
+        complaint_id: complaintId,
+        user_id: req.user.id,
+        location,
+        waste_type: wasteType,
+        description,
+        block: block.toUpperCase(),
+        image: imageUrl,
+        type: type || 'complaint',
+        status: 'pending',
+        status_history: [
+          {
+            status: 'pending',
+            note: 'Complaint submitted',
+            updatedBy: req.user.id,
+            timestamp: new Date(),
+          },
+        ],
+      }])
+      .select()
+      .single();
 
-    console.log(`✅ [SUBMIT] Saved ${complaintId} | image=${complaint.image}`);
+    if (error) throw error;
 
-    // ✅ Notify Student about registration
-    await createNotification(
-      req.user.id,
-      `📢 Your complaint ${complaintId} has been registered successfully!`,
-      'complaint'
-    );
+    console.log(`✅ [SUBMIT] Saved ${complaintId}`);
 
-    // ✅ Notify Admins about new complaint
-    const admins = await User.find({ role: 'admin' });
-    for (const admin of admins) {
-      await createNotification(
-        admin._id,
-        `📋 New complaint ${complaintId} filed in Block ${block.toUpperCase()}`,
-        'complaint'
-      );
+    // ✅ Notify Student
+    await supabase.from('notifications').insert([{
+      user_id: req.user.id,
+      message: `📢 Your complaint ${complaintId} has been registered successfully!`,
+      type: 'complaint'
+    }]);
+
+    // ✅ Notify Admins
+    const { data: admins } = await supabase
+      .from('users')
+      .select('id')
+      .eq('role', 'admin');
+
+    if (admins) {
+      for (const admin of admins) {
+        await supabase.from('notifications').insert([{
+          user_id: admin.id,
+          message: `📋 New complaint ${complaintId} filed in Block ${block.toUpperCase()}`,
+          type: 'complaint'
+        }]);
+      }
     }
 
-    res.status(201).json(complaint);
+    res.status(201).json(mapComplaint(complaint));
   } catch (err) {
     console.error("🔥 [SUBMIT] ERROR:", err.message);
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -142,9 +180,13 @@ const updateComplaintStatus = async (req, res) => {
     const { status, note } = req.body;
     const { id } = req.params;
 
-    const complaint = await Complaint.findOne({ complaintId: id.toUpperCase() });
+    const { data: complaint, error: fetchError } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('complaint_id', id.toUpperCase())
+      .single();
 
-    if (!complaint) {
+    if (fetchError || !complaint) {
       return res.status(404).json({ message: 'Complaint not found' });
     }
 
@@ -153,38 +195,41 @@ const updateComplaintStatus = async (req, res) => {
       return res.status(403).json({ message: 'Not authorized to update other blocks' });
     }
 
+    const updateData = { status };
+    
     // If status is moving to in-progress, assign to the current collector
-    if (req.user.role === 'collector' && !complaint.assignedTo) {
-      complaint.assignedTo = req.user._id;
+    if (req.user.role === 'collector' && !complaint.assigned_to) {
+      updateData.assigned_to = req.user.id;
     }
 
-    complaint.status = status;
-    complaint.statusHistory.push({
-      status,
-      note: note || `Status updated to ${status}`,
-      updatedBy: req.user.id,
-      timestamp: new Date(),
-    });
+    const newHistory = [
+      ...complaint.status_history,
+      {
+        status,
+        note: note || `Status updated to ${status}`,
+        updatedBy: req.user.id,
+        timestamp: new Date(),
+      }
+    ];
+    updateData.status_history = newHistory;
 
-    await complaint.save();
+    const { data: updatedComplaint, error: updateError } = await supabase
+      .from('complaints')
+      .update(updateData)
+      .eq('complaint_id', id.toUpperCase())
+      .select()
+      .single();
 
-    // ✅ Notify Student about assignment if just assigned
-    if (status === 'in-progress' || status === 'in_progress') {
-      await createNotification(
-        complaint.user,
-        `🚛 Collector ${req.user.name} has picked up your complaint ${complaint.complaintId}`,
-        'complaint'
-      );
-    }
+    if (updateError) throw updateError;
 
-    // ✅ Notify Student about status update
-    await createNotification(
-      complaint.user,
-      `🔍 Complaint ${complaint.complaintId} status updated to: ${status}`,
-      'complaint'
-    );
+    // ✅ Notify Student
+    await supabase.from('notifications').insert([{
+      user_id: complaint.user_id,
+      message: `🔍 Complaint ${complaint.complaint_id} status updated to: ${status}`,
+      type: 'complaint'
+    }]);
 
-    res.json(complaint);
+    res.json(mapComplaint(updatedComplaint));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -195,79 +240,77 @@ const updateComplaintStatus = async (req, res) => {
 const completeComplaint = async (req, res) => {
   try {
     const { id } = req.params;
-    console.log(`🚀 [COMPLETE] Request for: ${id}`);
 
-    // ── Step 1: Validate file ──
     if (!req.file) {
-      console.log("❌ [COMPLETE] No file in request");
       return res.status(400).json({ message: 'Proof image is required.' });
     }
 
-    console.log("📸 [COMPLETE] File received:", {
-      fieldname: req.file.fieldname,
-      mimetype: req.file.mimetype,
-      size: req.file.size,
-      hasBuffer: !!req.file.buffer,
-    });
+    const { data: complaint, error: fetchError } = await supabase
+      .from('complaints')
+      .select('*')
+      .eq('complaint_id', id.toUpperCase())
+      .single();
 
-    // ── Step 2: Find complaint ──
-    const complaint = await Complaint.findOne({ complaintId: id.toUpperCase() });
-    if (!complaint) {
-      console.log(`❌ [COMPLETE] Not found: ${id}`);
+    if (fetchError || !complaint) {
       return res.status(404).json({ message: 'Complaint not found' });
     }
 
-    // ── Step 3: Auth check ──
-    const userId = (req.user._id || req.user.id).toString();
-    const assignedId = complaint.assignedTo ? complaint.assignedTo.toString() : null;
+    // Auth check
+    const userId = req.user.id;
+    const assignedId = complaint.assigned_to;
     if (assignedId && assignedId !== userId) {
-      console.log(`❌ [COMPLETE] Auth: user=${userId} assigned=${assignedId}`);
       return res.status(403).json({ message: 'Only the assigned collector can complete this.' });
     }
 
-    // ── Step 4: Upload to Cloudinary ──
+    // Upload to Cloudinary
     let imageUrl;
     try {
-      console.log("☁️ [COMPLETE] Uploading to Cloudinary...");
       imageUrl = await uploadToCloudinary(req.file, 'wasteo/completions');
-      console.log("✅ [COMPLETE] Cloudinary URL:", imageUrl);
     } catch (uploadErr) {
-      console.error("❌ [COMPLETE] Cloudinary FAILED:", uploadErr.message);
       return res.status(500).json({
         message: 'Image upload to Cloudinary failed',
         error: uploadErr.message,
       });
     }
 
-    // ── Step 5: Save to DB ──
-    complaint.status = 'completed';
-    complaint.completionImage = imageUrl;
-    complaint.statusHistory.push({
-      status: 'completed',
-      note: 'Completed with image proof',
-      updatedBy: req.user._id,
-      timestamp: new Date(),
-    });
+    const newHistory = [
+      ...complaint.status_history,
+      {
+        status: 'completed',
+        note: 'Completed with image proof',
+        updatedBy: req.user.id,
+        timestamp: new Date(),
+      }
+    ];
 
-    await complaint.save();
-    console.log(`✅ [COMPLETE] DB saved: ${complaint.complaintId}`);
+    const { data: updatedComplaint, error: updateError } = await supabase
+      .from('complaints')
+      .update({
+        status: 'completed',
+        completion_image: imageUrl,
+        status_history: newHistory
+      })
+      .eq('complaint_id', id.toUpperCase())
+      .select()
+      .single();
 
-    // ── Step 6: Notify (non-blocking) ──
-    createNotification(
-      complaint.user,
-      `✅ Your complaint ${complaint.complaintId} has been completed!`,
-      'complaint'
-    ).catch(e => console.error("⚠️ Notification error:", e.message));
+    if (updateError) throw updateError;
+
+    // Notify Student
+    await supabase.from('notifications').insert([{
+      user_id: complaint.user_id,
+      message: `✅ Your complaint ${complaint.complaint_id} has been completed!`,
+      type: 'complaint'
+    }]);
 
     return res.json({
       success: true,
       message: 'Complaint completed successfully',
-      complaintId: complaint.complaintId,
+      complaintId: complaint.complaint_id,
       completionImage: imageUrl,
     });
 
   } catch (err) {
-    console.error("🔥 [COMPLETE] FATAL:", err);
     return res.status(500).json({
       message: `Server error: ${err.message}`,
       error: err.message,

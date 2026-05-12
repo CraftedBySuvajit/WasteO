@@ -1,16 +1,30 @@
-const User = require('../models/User');
+const supabase = require('../config/supabase');
 const bcrypt = require('bcryptjs');
-const { createNotification } = require('./notificationController');
+
+// Helper to clean user object (remove password)
+const cleanUser = (user) => {
+  const obj = { ...user };
+  delete obj.password;
+  return obj;
+};
 
 // @desc    Get all users (admin)
 // @route   GET /api/users
 const getUsers = async (req, res) => {
   try {
     const { role } = req.query;
-    const filter = {};
-    if (role) filter.role = role;
-    const users = await User.find(filter).select('-password').sort({ createdAt: -1 });
-    res.json(users);
+    let query = supabase.from('users').select('*').order('created_at', { ascending: false });
+    
+    if (role) {
+      query = query.eq('role', role);
+    }
+
+    const { data: users, error } = await query;
+    if (error) throw error;
+
+    // Remove passwords from response
+    const cleanedUsers = users.map(user => cleanUser(user));
+    res.json(cleanedUsers);
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -20,9 +34,15 @@ const getUsers = async (req, res) => {
 // @route   GET /api/users/:id
 const getUserById = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id).select('-password');
-    if (!user) return res.status(404).json({ message: 'User not found' });
-    res.json(user);
+    const { data: user, error } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (error || !user) return res.status(404).json({ message: 'User not found' });
+    
+    res.json(cleanUser(user));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -38,40 +58,54 @@ const createUser = async (req, res) => {
       return res.status(400).json({ message: 'Please fill all required fields (name, email, password)' });
     }
 
-    // Validate block for students and collectors — required by schema
+    // Validate block for students and collectors
     if (['student', 'collector'].includes(role) && !block) {
       return res.status(400).json({ message: `Block (A–E) is required when creating a ${role}` });
     }
 
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const { data: existing } = await supabase
+      .from('users')
+      .select('id')
+      .eq('email', email.toLowerCase())
+      .single();
+
     if (existing) {
       return res.status(400).json({ message: `Email "${email.toLowerCase()}" already exists. Choose a different email.` });
     }
 
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(password, salt);
+
     const userData = {
-      password,
+      password: hashedPassword,
       role: role || 'student',
       name,
       email: email.toLowerCase(),
       dept: dept || '',
     };
 
-    // Add block for student/collector roles (already validated above)
     if (['student', 'collector'].includes(role) && block) {
       userData.block = block.toUpperCase();
     }
 
-    const user = await User.create(userData);
+    const { data: user, error } = await supabase
+      .from('users')
+      .insert([userData])
+      .select()
+      .single();
+
+    if (error) throw error;
+
     console.log(`👤 [USERS] Created ${userData.role} | block: ${userData.block || 'N/A'} | email: ${userData.email}`);
 
-    // ✅ Notify the new user
-    await createNotification(
-      user._id,
-      `👋 Welcome to WasteO, ${user.name}! Your account as a ${user.role} has been created.`,
-      'info'
-    );
+    // ✅ Notify the new user directly via Supabase
+    await supabase.from('notifications').insert([{
+      user_id: user.id,
+      message: `👋 Welcome to WasteO, ${user.name}! Your account as a ${user.role} has been created.`,
+      type: 'info'
+    }]);
 
-    res.status(201).json(user.toJSON());
+    res.status(201).json(cleanUser(user));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -81,21 +115,37 @@ const createUser = async (req, res) => {
 // @route   PUT /api/users/:id
 const updateUser = async (req, res) => {
   try {
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    // Check if user exists
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (fetchError || !user) return res.status(404).json({ message: 'User not found' });
 
     // Only allow self-update or admin
-    if (req.user.role !== 'admin' && req.user._id.toString() !== user._id.toString()) {
+    // Note: req.user.id is used here, assuming it's the UUID from JWT
+    if (req.user.role !== 'admin' && req.user.id !== user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
     const allowedFields = ['name', 'email', 'dept', 'avatar'];
+    const updateData = {};
     allowedFields.forEach((field) => {
-      if (req.body[field] !== undefined) user[field] = req.body[field];
+      if (req.body[field] !== undefined) updateData[field] = req.body[field];
     });
 
-    await user.save();
-    res.json(user.toJSON());
+    const { data: updatedUser, error: updateError } = await supabase
+      .from('users')
+      .update(updateData)
+      .eq('id', req.params.id)
+      .select()
+      .single();
+
+    if (updateError) throw updateError;
+
+    res.json(cleanUser(updatedUser));
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
   }
@@ -115,21 +165,34 @@ const changePassword = async (req, res) => {
       return res.status(400).json({ message: 'Password must be at least 6 characters' });
     }
 
-    const user = await User.findById(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('*')
+      .eq('id', req.params.id)
+      .single();
+
+    if (fetchError || !user) return res.status(404).json({ message: 'User not found' });
 
     // Only allow self-update
-    if (req.user._id.toString() !== user._id.toString()) {
+    if (req.user.id !== user.id) {
       return res.status(403).json({ message: 'Not authorized' });
     }
 
-    const isMatch = await user.matchPassword(oldPassword);
+    const isMatch = await bcrypt.compare(oldPassword, user.password);
     if (!isMatch) {
       return res.status(400).json({ message: 'Current password is incorrect' });
     }
 
-    user.password = newPassword;
-    await user.save();
+    const salt = await bcrypt.genSalt(10);
+    const hashedPassword = await bcrypt.hash(newPassword, salt);
+
+    const { error: updateError } = await supabase
+      .from('users')
+      .update({ password: hashedPassword })
+      .eq('id', req.params.id);
+
+    if (updateError) throw updateError;
+
     res.json({ message: 'Password updated successfully' });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });
@@ -140,8 +203,21 @@ const changePassword = async (req, res) => {
 // @route   DELETE /api/users/:id
 const deleteUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
-    if (!user) return res.status(404).json({ message: 'User not found' });
+    const { data: user, error: fetchError } = await supabase
+      .from('users')
+      .select('name')
+      .eq('id', req.params.id)
+      .single();
+
+    if (fetchError || !user) return res.status(404).json({ message: 'User not found' });
+
+    const { error: deleteError } = await supabase
+      .from('users')
+      .delete()
+      .eq('id', req.params.id);
+
+    if (deleteError) throw deleteError;
+
     res.json({ message: `User ${user.name} deleted` });
   } catch (err) {
     res.status(500).json({ message: 'Server error', error: err.message });

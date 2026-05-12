@@ -33,13 +33,11 @@ export default function AuthPage() {
   const [forgotSuccess, setForgotSuccess] = useState('');
   const [forgotError, setForgotError] = useState('');
 
-  // Autofill demo credentials when role or tab changes
+  // Removed auto-fill demo credentials
   useEffect(() => {
     if (activeTab === 'login') {
-      const role = selectedRole.toLowerCase();
-      const email = `${role}@edu.in`;
-      setLoginEmail(email);
-      setLoginPass('12345678');
+      setLoginEmail('');
+      setLoginPass('');
       setError('');
     }
   }, [selectedRole, activeTab]);
