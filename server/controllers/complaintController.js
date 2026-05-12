@@ -3,7 +3,7 @@ const User = require('../models/User');
 const { uploadToCloudinary } = require('../middleware/upload');
 
 const mapComplaint = (c) => ({
-  id: c.id,
+  id: c._id,
   complaintId: c.complaint_id,
   user: c.user_id,
   location: c.location,
@@ -18,6 +18,7 @@ const mapComplaint = (c) => ({
   binId: c.bin_id,
   statusHistory: c.status_history,
   image: c.image,
+  aiResults: c.ai_results || null,
   completionImage: c.completion_image,
   rewardGiven: c.reward_given,
   createdAt: c.created_at,

@@ -83,12 +83,14 @@ export default function AuthPage() {
   const handleStudentSignup = async (e) => {
     e.preventDefault();
     setError('');
-    const normalizedEmail = suEmail.trim().toLowerCase();
     
-    if (!suName || !normalizedEmail || !suPass || !suConfirm) {
+    const normalizedEmail = suEmail ? suEmail.trim().toLowerCase() : '';
+    
+    if (!suName || !normalizedEmail || !suPass) {
       setError('Please fill in all required fields (Name, Email, and Password).');
       return;
     }
+    
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
       setError('Please enter a valid email address.');
       return;
@@ -101,6 +103,7 @@ export default function AuthPage() {
       setError('Passwords do not match.');
       return;
     }
+
     setLoading(true);
     try {
       await register({ 
@@ -110,6 +113,8 @@ export default function AuthPage() {
         password: suPass
       });
       showToast('🎉 100 Points Credited! Welcome Bonus!', 'success', 5000);
+      // Usually the register function in AuthContext redirects or updates state
+      setError(''); 
     } catch (err) {
       setError(err.response?.data?.message || 'Registration failed. Please try again.');
     } finally {

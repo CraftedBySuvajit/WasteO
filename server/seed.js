@@ -198,9 +198,10 @@ const seedDatabase = async () => {
     }
 
     console.log('\n✨ Seeding complete! Demo data is ready.');
+    process.exit(0);
   } catch (err) {
     console.error('❌ Seeding failed:', err.message);
-    process.exitCode = 1;
+    process.exit(1);
   }
 };
 

@@ -79,7 +79,11 @@ const main = async () => {
     const login = await call('POST /api/auth/login (test user)', '/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: TEST_EMAIL, password: TEST_PASSWORD, role: TEST_ROLE })
+      body: JSON.stringify({ 
+        email: TEST_EMAIL.trim().toLowerCase(), 
+        password: TEST_PASSWORD, 
+        role: TEST_ROLE 
+      })
     }, [200]);
     count(login.ok);
 
