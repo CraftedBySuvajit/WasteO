@@ -1,5 +1,4 @@
 require('dotenv').config();
-const axios = require('axios');
 
 const testRegistration = async () => {
     try {
@@ -10,10 +9,20 @@ const testRegistration = async () => {
             password: "password123"
         };
         console.log('Sending request to http://localhost:5000/api/auth/register with payload:', payload);
-        const res = await axios.post('http://localhost:5000/api/auth/register', payload);
-        console.log('✅ Registration SUCCESS:', res.data.user.userId);
+        const res = await fetch('http://localhost:5000/api/auth/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload)
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+            throw new Error(data.message || 'Registration failed');
+        }
+
+        console.log('✅ Registration SUCCESS:', data.user?.id || 'User created');
     } catch (err) {
-        console.error('❌ Registration FAILED:', err.response?.data || err.message);
+        console.error('❌ Registration FAILED:', err.message);
     }
 };
 

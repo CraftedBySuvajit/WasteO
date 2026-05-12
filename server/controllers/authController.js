@@ -2,6 +2,22 @@ const jwt = require('jsonwebtoken');
 const supabase = require('../config/supabase');
 const bcrypt = require('bcryptjs');
 
+const validateAuthRuntime = (res) => {
+  if (!supabase.isConfigured) {
+    res.status(503).json({
+      message: supabase.configError || 'Supabase is not configured.'
+    });
+    return false;
+  }
+
+  if (!process.env.JWT_SECRET) {
+    res.status(500).json({ message: 'JWT_SECRET is not configured on the server.' });
+    return false;
+  }
+
+  return true;
+};
+
 // Generate JWT with id, role, and block embedded
 const generateToken = (user) => {
   return jwt.sign(
@@ -26,6 +42,8 @@ const cleanUser = (user) => {
 // @route   POST /api/auth/login
 const login = async (req, res) => {
   try {
+    if (!validateAuthRuntime(res)) return;
+
     const { email, password, role } = req.body;
 
     if (!email || !password) {
@@ -70,6 +88,8 @@ const login = async (req, res) => {
 // @route   POST /api/auth/register
 const register = async (req, res) => {
   try {
+    if (!validateAuthRuntime(res)) return;
+
     const { name, email, dept, password, block } = req.body;
 
     const studentBlock = block || 'A';

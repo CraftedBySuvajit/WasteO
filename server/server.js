@@ -18,19 +18,31 @@ const notificationRoutes = require('./routes/notificationRoutes');
 const app = express();
 // ✅ Supabase used (No connection call needed here as it's initialized on import in controllers)
 
+if (!process.env.JWT_SECRET) {
+  console.warn('⚠️ JWT_SECRET is not set. Login/register token issuance will fail.');
+}
+
 // ✅ CORS FIX (IMPORTANT)
-const allowedOrigins = [
+const defaultOrigins = [
   "http://localhost:3000",
   "http://localhost:3001",
   "http://localhost:5173",
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
   "http://127.0.0.1:5173",
+  "https://wasteo.vercel.app"
 ];
+
+const envOrigins = (process.env.CORS_ORIGINS || '')
+  .split(',')
+  .map((origin) => origin.trim())
+  .filter(Boolean);
+
+const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes(origin)) {
+    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
