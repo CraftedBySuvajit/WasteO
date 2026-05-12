@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('./config/loadEnv');
 
 const testRegistration = async () => {
     try {
@@ -17,6 +17,11 @@ const testRegistration = async () => {
 
         const data = await res.json();
         if (!res.ok) {
+            if (res.status === 503) {
+                console.log('⚠️ Registration blocked by backend configuration:');
+                console.log(data.message || 'Supabase service-role key is required for writes.');
+                return;
+            }
             throw new Error(data.message || 'Registration failed');
         }
 

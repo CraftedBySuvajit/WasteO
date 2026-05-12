@@ -1,3 +1,4 @@
+require('./config/loadEnv');
 const testLogin = async () => {
   const baseUrl = 'http://localhost:5000/api/auth';
   const testUser = {
@@ -22,6 +23,12 @@ const testLogin = async () => {
     const regData = await regRes.json();
     console.log('Register Response Status:', regRes.status);
     console.log('Register Response:', regData);
+
+    if (regRes.status === 503) {
+      console.log('⚠️ Auth write flow is blocked by backend configuration:');
+      console.log(regData.message || 'Supabase service-role key is required for registration writes.');
+      return;
+    }
 
     // If user already exists, that's fine too for testing login.
     if (regRes.status !== 201 && regRes.status !== 400) {

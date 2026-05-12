@@ -1,4 +1,4 @@
-require('dotenv').config();
+require('./config/loadEnv');
 const supabase = require('./config/supabase');
 const bcrypt = require('bcryptjs');
 

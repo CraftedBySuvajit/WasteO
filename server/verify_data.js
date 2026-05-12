@@ -1,3 +1,4 @@
+require('./config/loadEnv');
 const supabase = require('./config/supabase');
 
 const verifyData = async () => {

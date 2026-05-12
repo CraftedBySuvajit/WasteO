@@ -7,6 +7,8 @@
     "start": "node server.js",
     "dev": "node server.js",
     "seed": "node seed.js",
+    "cleanup:demo": "node cleanup_demo_data.js",
+    "test:routes": "node test_all_routes.js",
     "migrate": "tsx migrate.ts",
     "build": "tsc"
   },

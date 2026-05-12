@@ -10,6 +10,13 @@ const validateAuthRuntime = (res) => {
     return false;
   }
 
+  if (supabase.usingPublishableKey) {
+    res.status(503).json({
+      message: supabase.publishableKeyError || 'Invalid Supabase backend key configuration.'
+    });
+    return false;
+  }
+
   if (!process.env.JWT_SECRET) {
     res.status(500).json({ message: 'JWT_SECRET is not configured on the server.' });
     return false;

@@ -1,5 +1,5 @@
 const path = require('path');
-require('dotenv').config({ path: path.join(__dirname, '.env') });
+require('./config/loadEnv');
 
 const express = require('express');
 const cors = require('cors');
@@ -14,6 +14,7 @@ const storeRoutes = require('./routes/storeRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const iotRoutes = require('./routes/iotRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
+const supabase = require('./config/supabase');
 
 const app = express();
 // ✅ Supabase used (No connection call needed here as it's initialized on import in controllers)
@@ -30,7 +31,8 @@ const defaultOrigins = [
   "http://127.0.0.1:3000",
   "http://127.0.0.1:3001",
   "http://127.0.0.1:5173",
-  "https://wasteo.vercel.app"
+  "https://wasteo.vercel.app",
+  "https://*.vercel.app"
 ];
 
 const envOrigins = (process.env.CORS_ORIGINS || '')
@@ -40,9 +42,23 @@ const envOrigins = (process.env.CORS_ORIGINS || '')
 
 const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
+const isAllowedOrigin = (origin) => {
+  if (!origin) return true;
+  if (allowedOrigins.includes('*')) return true;
+  if (allowedOrigins.includes(origin)) return true;
+
+  // Support wildcard entries like https://*.vercel.app in CORS_ORIGINS.
+  return allowedOrigins.some((pattern) => {
+    if (!pattern.includes('*')) return false;
+    const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
+    const regex = new RegExp(`^${escaped}$`);
+    return regex.test(origin);
+  });
+};
+
 app.use(cors({
   origin: function (origin, callback) {
-    if (!origin || allowedOrigins.includes('*') || allowedOrigins.includes(origin)) {
+    if (isAllowedOrigin(origin)) {
       callback(null, true);
     } else {
       callback(new Error("Not allowed by CORS"));
@@ -80,12 +96,37 @@ app.get('/api', (req, res) => {
 });
 
 // ✅ Health check (includes Cloudinary config status for debugging)
-app.get('/api/health', (req, res) => {
+app.get('/api/health', async (req, res) => {
   const cloudinary = require('./config/cloudinary');
   const cfg = cloudinary.config();
+
+  let db = {
+    configured: Boolean(supabase.isConfigured),
+    connected: false,
+    error: null,
+  };
+
+  if (supabase.isConfigured) {
+    try {
+      const { error } = await supabase
+        .from('users')
+        .select('id')
+        .limit(1);
+
+      db.connected = !error;
+      db.error = error ? error.message : null;
+    } catch (err) {
+      db.connected = false;
+      db.error = err.message;
+    }
+  } else {
+    db.error = supabase.configError || 'Supabase is not configured.';
+  }
+
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
+    db,
     cloudinary: {
       configured: !!(cfg.cloud_name && cfg.api_key && cfg.api_secret),
       cloud_name: cfg.cloud_name || 'MISSING',
