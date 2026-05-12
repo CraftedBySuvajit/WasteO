@@ -71,6 +71,29 @@ export default function AuthPage() {
     }
   };
 
+  const demoCredentials = {
+    student: { email: 'student1@edu.in', password: '12345678' },
+    collector: { email: 'collector1@edu.in', password: '12345678' },
+    admin: { email: 'admin@edu.in', password: '12345678' },
+  };
+
+  const handleDemoLogin = async (role) => {
+    setError('');
+    const creds = demoCredentials[role];
+    if (!creds) return;
+    setSelectedRole(role);
+    setLoginEmail(creds.email);
+    setLoginPass(creds.password);
+    setLoading(true);
+    try {
+      await login(creds.email, creds.password, role);
+    } catch (err) {
+      setError(err.response?.data?.message || 'Demo login failed');
+    } finally {
+      setLoading(false);
+    }
+  };
+
   const handleStudentSignup = async (e) => {
     e.preventDefault();
     setError('');
@@ -202,6 +225,11 @@ export default function AuthPage() {
                 {error && <div className="auth-error">{error}</div>}
 
                 <form onSubmit={handleLogin} style={{ display: 'flex', flexDirection: 'column', gap: '.95rem' }}>
+                    <div style={{ display: 'flex', gap: '.5rem', justifyContent: 'flex-end' }}>
+                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('student')}>Demo Student</button>
+                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('collector')}>Demo Collector</button>
+                      <button type="button" className="btn btn-ghost" onClick={() => handleDemoLogin('admin')}>Demo Admin</button>
+                    </div>
                   <div className="form-group">
                     <label className="form-label">Email Address</label>
                     <div className="input-icon-wrap">
