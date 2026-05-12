@@ -17,8 +17,18 @@ const notificationRoutes = require('./routes/notificationRoutes');
 
 const app = express();
 
-if (!process.env.JWT_SECRET) {
-  console.warn('⚠️ JWT_SECRET is not set. Login/register token issuance will fail.');
+const isProduction = process.env.NODE_ENV === 'production';
+
+// Enforce JWT_SECRET existence and check against common placeholder values
+if (!process.env.JWT_SECRET || process.env.JWT_SECRET === 'replace_with_strong_secret') {
+  const errorMessage = '❌ CRITICAL: JWT_SECRET is missing or using the default placeholder value.';
+  if (isProduction) {
+    console.error(errorMessage);
+    console.error('The server cannot start in production without a secure JWT_SECRET defined in environment variables.');
+    process.exit(1);
+  } else {
+    console.warn(`⚠️ WARNING: ${errorMessage} Authentication and registration features will not work correctly.`);
+  }
 }
 
 const defaultOrigins = [
@@ -28,8 +38,6 @@ const defaultOrigins = [
   'http://127.0.0.1:3000',
   'http://127.0.0.1:3001',
   'http://127.0.0.1:5173',
-  'https://sgwasteo.vercel.app',
-  'https://*.vercel.app',
 ];
 
 const envOrigins = (process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
