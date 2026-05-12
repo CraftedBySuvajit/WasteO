@@ -26,7 +26,7 @@ const testLogin = async () => {
 
     if (regRes.status === 503) {
       console.log('⚠️ Auth write flow is blocked by backend configuration:');
-      console.log(regData.message || 'Supabase service-role key is required for registration writes.');
+      console.log(regData.message || 'MongoDB connection or schema setup is required for registration writes.');
       return;
     }
 

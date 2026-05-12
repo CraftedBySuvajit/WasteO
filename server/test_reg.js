@@ -19,7 +19,7 @@ const testRegistration = async () => {
         if (!res.ok) {
             if (res.status === 503) {
                 console.log('⚠️ Registration blocked by backend configuration:');
-                console.log(data.message || 'Supabase service-role key is required for writes.');
+                console.log(data.message || 'MongoDB connection or schema setup is required for writes.');
                 return;
             }
             throw new Error(data.message || 'Registration failed');

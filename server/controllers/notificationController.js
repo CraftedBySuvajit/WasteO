@@ -1,4 +1,4 @@
-const supabase = require('../config/supabase');
+const Notification = require('../models/Notification');
 
 // Helper to map DB notification to frontend camelCase
 const mapNotification = (n) => {
@@ -19,17 +19,8 @@ const mapNotification = (n) => {
 const getNotifications = async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    const { data: notifications, error } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('user_id', userId)
-      .order('created_at', { ascending: false })
-      .limit(50);
-      
-    if (error) throw error;
-
-    const mappedNotifications = notifications.map(n => mapNotification(n));
+    const notifications = await Notification.find({ user_id: userId }).sort({ created_at: -1 }).limit(50);
+    const mappedNotifications = notifications.map((n) => mapNotification(n));
     res.json(mappedNotifications);
   } catch (err) {
     console.error(`❌ [NOTIFICATIONS ERROR]: ${err.message}`);
@@ -41,27 +32,19 @@ const getNotifications = async (req, res) => {
 // @route   PUT /api/notifications/read/:id
 const markAsRead = async (req, res) => {
   try {
-    const { data: notification, error: fetchError } = await supabase
-      .from('notifications')
-      .select('*')
-      .eq('id', req.params.id)
-      .single();
+    const notification = await Notification.findById(req.params.id);
 
-    if (fetchError || !notification) {
+    if (!notification) {
       return res.status(404).json({ message: 'Notification not found' });
     }
 
     // Ensure user owns the notification
-    if (notification.user_id !== req.user.id) {
+    if (String(notification.user_id) !== String(req.user.id)) {
       return res.status(401).json({ message: 'Not authorized' });
     }
 
-    const { error: updateError } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('id', req.params.id);
-
-    if (updateError) throw updateError;
+    notification.is_read = true;
+    await notification.save();
 
     res.json({ message: 'Notification marked as read' });
   } catch (err) {
@@ -74,14 +57,7 @@ const markAsRead = async (req, res) => {
 const markAllAsRead = async (req, res) => {
   try {
     const userId = req.user.id;
-    
-    const { error } = await supabase
-      .from('notifications')
-      .update({ is_read: true })
-      .eq('user_id', userId)
-      .eq('is_read', false);
-
-    if (error) throw error;
+    await Notification.updateMany({ user_id: userId, is_read: false }, { is_read: true });
 
     res.json({ message: 'All notifications marked as read' });
   } catch (err) {
@@ -97,15 +73,11 @@ const createNotification = async (userId, message, type) => {
       return;
     }
     
-    const { error } = await supabase
-      .from('notifications')
-      .insert([{
-        user_id: userId,
-        message,
-        type: type || 'info'
-      }]);
-
-    if (error) throw error;
+    await Notification.create({
+      user_id: userId,
+      message,
+      type: type || 'info',
+    });
     
     console.log(`🔔 [NOTIFICATION] Created for user ${userId}: "${message}" (${type})`);
   } catch (err) {

@@ -1,10 +1,10 @@
-const path = require('path');
 require('./config/loadEnv');
 
 const express = require('express');
 const cors = require('cors');
+const connectMongo = require('./config/mongodb');
+const mongoose = require('mongoose');
 
-// Route imports
 const authRoutes = require('./routes/authRoutes');
 const userRoutes = require('./routes/userRoutes');
 const complaintRoutes = require('./routes/complaintRoutes');
@@ -14,67 +14,50 @@ const storeRoutes = require('./routes/storeRoutes');
 const orderRoutes = require('./routes/orderRoutes');
 const iotRoutes = require('./routes/iotRoutes');
 const notificationRoutes = require('./routes/notificationRoutes');
-const supabase = require('./config/supabase');
 
 const app = express();
-// ✅ Supabase used (No connection call needed here as it's initialized on import in controllers)
 
 if (!process.env.JWT_SECRET) {
   console.warn('⚠️ JWT_SECRET is not set. Login/register token issuance will fail.');
 }
 
-// ✅ CORS FIX (IMPORTANT)
 const defaultOrigins = [
-  "http://localhost:3000",
-  "http://localhost:3001",
-  "http://localhost:5173",
-  "http://127.0.0.1:3000",
-  "http://127.0.0.1:3001",
-  "http://127.0.0.1:5173",
-  "https://wasteo.vercel.app",
-  "https://*.vercel.app"
+  'http://localhost:3000',
+  'http://localhost:3001',
+  'http://localhost:5173',
+  'http://127.0.0.1:3000',
+  'http://127.0.0.1:3001',
+  'http://127.0.0.1:5173',
+  'https://sgwasteo.vercel.app',
+  'https://*.vercel.app',
 ];
 
-const envOrigins = (process.env.CORS_ORIGINS || '')
-  .split(',')
-  .map((origin) => origin.trim())
-  .filter(Boolean);
-
+const envOrigins = (process.env.CORS_ORIGINS || '').split(',').map((origin) => origin.trim()).filter(Boolean);
 const allowedOrigins = [...new Set([...defaultOrigins, ...envOrigins])];
 
 const isAllowedOrigin = (origin) => {
   if (!origin) return true;
   if (allowedOrigins.includes('*')) return true;
   if (allowedOrigins.includes(origin)) return true;
-
-  // Support wildcard entries like https://*.vercel.app in CORS_ORIGINS.
   return allowedOrigins.some((pattern) => {
     if (!pattern.includes('*')) return false;
     const escaped = pattern.replace(/[.+?^${}()|[\]\\]/g, '\\$&').replace(/\*/g, '.*');
-    const regex = new RegExp(`^${escaped}$`);
-    return regex.test(origin);
+    return new RegExp(`^${escaped}$`).test(origin);
   });
 };
 
 app.use(cors({
-  origin: function (origin, callback) {
-    if (isAllowedOrigin(origin)) {
-      callback(null, true);
-    } else {
-      callback(new Error("Not allowed by CORS"));
-    }
+  origin(origin, callback) {
+    if (isAllowedOrigin(origin)) callback(null, true);
+    else callback(new Error('Not allowed by CORS'));
   },
-  credentials: true
+  credentials: true,
 }));
 
-// ✅ Middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true }));
+app.use('/uploads', express.static(require('path').join(__dirname, 'uploads')));
 
-// ✅ Serve uploaded files
-app.use('/uploads', express.static(path.join(__dirname, 'uploads')));
-
-// ✅ Routes
 app.use('/api/auth', authRoutes);
 app.use('/api/users', userRoutes);
 app.use('/api/complaints', complaintRoutes);
@@ -85,48 +68,19 @@ app.use('/api/orders', orderRoutes);
 app.use('/api/iot', iotRoutes);
 app.use('/api/notifications', notificationRoutes);
 
-// ✅ Root route (Render health check)
-app.get('/', (req, res) => {
-  res.send('🚀 WasteO Backend Running Successfully');
-});
-
-// ✅ API check
-app.get('/api', (req, res) => {
-  res.send('🚀 WasteO API is running successfully...');
-});
-
-// ✅ Health check (includes Cloudinary config status for debugging)
+app.get('/', (req, res) => res.send('🚀 WasteO Backend Running Successfully'));
+app.get('/api', (req, res) => res.send('🚀 WasteO API is running successfully...'));
 app.get('/api/health', async (req, res) => {
   const cloudinary = require('./config/cloudinary');
   const cfg = cloudinary.config();
-
-  let db = {
-    configured: Boolean(supabase.isConfigured),
-    connected: false,
-    error: null,
-  };
-
-  if (supabase.isConfigured) {
-    try {
-      const { error } = await supabase
-        .from('users')
-        .select('id')
-        .limit(1);
-
-      db.connected = !error;
-      db.error = error ? error.message : null;
-    } catch (err) {
-      db.connected = false;
-      db.error = err.message;
-    }
-  } else {
-    db.error = supabase.configError || 'Supabase is not configured.';
-  }
-
   res.json({
     status: 'OK',
     timestamp: new Date().toISOString(),
-    db,
+    db: {
+      configured: Boolean(process.env.MONGO_URI),
+      connected: mongoose.connection.readyState === 1,
+      error: mongoose.connection.readyState === 1 ? null : 'MongoDB not connected yet',
+    },
     cloudinary: {
       configured: !!(cfg.cloud_name && cfg.api_key && cfg.api_secret),
       cloud_name: cfg.cloud_name || 'MISSING',
@@ -137,31 +91,24 @@ app.get('/api/health', async (req, res) => {
   });
 });
 
-// ✅ Global error handler
 app.use((err, req, res, next) => {
-  if (err.code === 'LIMIT_FILE_SIZE') {
-    return res.status(413).json({
-      message: 'Image too large. Maximum size is 2 MB.'
-    });
-  }
-
-  if (err.message && err.message.includes('Only image files')) {
-    return res.status(400).json({
-      message: err.message
-    });
-  }
-
-  console.error("🔥 Error:", err.stack);
-
-  res.status(500).json({
-    message: 'Internal Server Error',
-    error: err.message
-  });
+  if (err.code === 'LIMIT_FILE_SIZE') return res.status(413).json({ message: 'Image too large. Maximum size is 2 MB.' });
+  if (err.message && err.message.includes('Only image files')) return res.status(400).json({ message: err.message });
+  console.error('🔥 Error:', err.stack);
+  res.status(500).json({ message: 'Internal Server Error', error: err.message });
 });
 
-// ✅ Start server (Render compatible)
 const PORT = process.env.PORT || 5000;
 
-app.listen(PORT, () => {
-  console.log(`🚀 Server running on port ${PORT}`);
-});
+const start = async () => {
+  try {
+    await connectMongo();
+    console.log('✅ MongoDB connected');
+    app.listen(PORT, () => console.log(`🚀 Server running on port ${PORT}`));
+  } catch (err) {
+    console.error('❌ Failed to start server:', err.message);
+    process.exit(1);
+  }
+};
+
+start();

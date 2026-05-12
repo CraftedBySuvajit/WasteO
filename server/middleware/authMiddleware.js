@@ -1,5 +1,5 @@
 const jwt = require('jsonwebtoken');
-const supabase = require('../config/supabase');
+const User = require('../models/User');
 
 // Protect routes — verify JWT token and attach full user to req.user
 const protect = async (req, res, next) => {
@@ -19,34 +19,22 @@ const protect = async (req, res, next) => {
   try {
     const decoded = jwt.verify(token, process.env.JWT_SECRET);
 
-    // Fetch fresh user from DB to ensure data is current (block might have changed)
-    const { data: user, error } = await supabase
-      .from('users')
-      .select('*')
-      .eq('id', decoded.id)
-      .single();
+    const user = await User.findById(decoded.id).select('-password');
 
-    if (error || !user) {
+    if (!user) {
       return res.status(401).json({ message: 'User not found' });
     }
 
-    const safeUser = { ...user };
-    delete safeUser.password;
-
-    // Attach user to request — this includes role, block, userId etc.
-    req.user = safeUser;
+    req.user = user.toObject ? user.toObject() : user;
     console.log("AUTH USER:", req.user);
 
     // Debug: verify block is available (remove in production)
-    if (safeUser.role === 'collector') {
-      console.log(`🔑 [AUTH] Collector ${safeUser.id} authenticated | block: ${JSON.stringify(safeUser.block)}`);
+    if (req.user.role === 'collector') {
+      console.log(`🔑 [AUTH] Collector ${req.user.id} authenticated | block: ${JSON.stringify(req.user.block)}`);
     }
 
     next();
   } catch (err) {
-    if (err.message && err.message.includes('Supabase is not configured')) {
-      return res.status(503).json({ message: err.message });
-    }
     return res.status(401).json({ message: 'Not authorized, token failed' });
   }
 };

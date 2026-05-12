@@ -1,47 +1,42 @@
 require('./config/loadEnv');
-const supabase = require('./config/supabase');
+const connectMongo = require('./config/mongodb');
+const User = require('./models/User');
+const Complaint = require('./models/Complaint');
+const Reward = require('./models/Reward');
+const Order = require('./models/Order');
+const Notification = require('./models/Notification');
 
 const run = async () => {
   try {
+    await connectMongo();
     console.log('🧹 Removing demo/test data...');
 
-    const { data: demoUsers, error: fetchErr } = await supabase
-      .from('users')
-      .select('id,email')
-      .or('email.eq.admin@edu.in,email.like.student%@edu.in,email.like.collector%@edu.in,email.eq.testuser@edu.in,email.like.test_new_%@campus.edu');
-
-    if (fetchErr) throw fetchErr;
+    const demoUsers = await User.find({
+      $or: [
+        { email: 'admin@edu.in' },
+        { email: { $regex: /^student\d+@edu\.in$/i } },
+        { email: { $regex: /^collector\d+@edu\.in$/i } },
+        { email: 'testuser@edu.in' },
+        { email: { $regex: /^test_new_.*@campus\.edu$/i } },
+      ],
+    }).select('_id email');
 
     if (!demoUsers || demoUsers.length === 0) {
       console.log('✅ No demo users found.');
       return;
     }
 
-    const userIds = demoUsers.map((u) => u.id);
+    const userIds = demoUsers.map((u) => u._id);
     console.log(`Found ${demoUsers.length} demo users.`);
 
-    const delOps = [
-      ['notifications', 'user_id'],
-      ['rewards', 'user_id'],
-      ['orders', 'user_id'],
-      ['complaints', 'user_id'],
-    ];
+    await Promise.all([
+      Notification.deleteMany({ user_id: { $in: userIds } }),
+      Reward.deleteMany({ user_id: { $in: userIds } }),
+      Order.deleteMany({ user_id: { $in: userIds } }),
+      Complaint.deleteMany({ user_id: { $in: userIds } }),
+    ]);
 
-    for (const [table, col] of delOps) {
-      const { error } = await supabase.from(table).delete().in(col, userIds);
-      if (error) {
-        console.log(`⚠️ ${table} cleanup skipped: ${error.message}`);
-      } else {
-        console.log(`✅ Cleaned ${table}`);
-      }
-    }
-
-    const { error: userDeleteErr } = await supabase
-      .from('users')
-      .delete()
-      .in('id', userIds);
-
-    if (userDeleteErr) throw userDeleteErr;
+    await User.deleteMany({ _id: { $in: userIds } });
 
     console.log('✅ Demo users removed:');
     demoUsers.forEach((u) => console.log(` - ${u.email}`));
