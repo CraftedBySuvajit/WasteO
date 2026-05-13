@@ -6,6 +6,8 @@ import Topbar from '../../components/layout/Topbar';
 import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
+import TokenTracker from '../../components/ui/TokenTracker';
+import ComplaintDetailModal from '../../components/ui/ComplaintDetailModal';
 import { fmtDate, getInitials } from '../../utils/helpers';
 import {
   getComplaints,
@@ -52,12 +54,16 @@ export default function CollectorDashboard() {
   const [dashFilter, setDashFilter] = useState('');
   const [resolved, setResolved] = useState([]);
 
-  // Modal
-  const [modalOpen, setModalOpen] = useState(false);
+  // Complaint detail / status modal (unified)
+  const [complaintDetailOpen, setComplaintDetailOpen] = useState(false);
   const [activeId, setActiveId] = useState('');
   const [modalStatus, setModalStatus] = useState('in-progress');
   const [selectedComplaint, setSelectedComplaint] = useState(null);
   const [rejectionReason, setRejectionReason] = useState('');
+  const [isCompleting, setIsCompleting] = useState(false);
+
+  // Keep modalOpen alias for any remaining references
+  const [modalOpen, setModalOpen] = useState(false);
 
   // Profile
   const [profile, setProfile] = useState(null);
@@ -68,10 +74,9 @@ export default function CollectorDashboard() {
   // Update Profile
   const [upName, setUpName] = useState('');
 
-  // Proof of Completion
+  // Proof of Completion (used by handleFileChange)
   const [completionFile, setCompletionFile] = useState(null);
   const [completionPreview, setCompletionPreview] = useState(null);
-  const [isCompleting, setIsCompleting] = useState(false);
 
   // Store & Rewards
   const [storeItems, setStoreItems] = useState([]);
@@ -137,7 +142,8 @@ export default function CollectorDashboard() {
       const res = await getUserById(user._id);
       setProfile(res.data);
       setUpName(res.data.name || '');
-      setRewardTotal(res.data.rewardPoints || 0);
+      // rewardPoints is normalised in api.js (reward_points → rewardPoints)
+      setRewardTotal(res.data.rewardPoints ?? res.data.reward_points ?? 0);
     } catch { /* ignore */ }
   }, [user._id]);
 
@@ -197,12 +203,14 @@ export default function CollectorDashboard() {
   const handleRedeem = async (itemId) => {
     try {
       const res = await redeemStoreItem(itemId);
-      showToast(`Item redeemed! Order ${res.data.order.orderId} created. Remaining: ${res.data.remainingPoints} pts ✅`);
+      const order = res.data?.order || res.data;
+      const remaining = res.data?.remainingPoints ?? '?';
+      showToast(`✅ Order ${order.orderId} created! Pickup Code: ${order.pickupCode} | Remaining: ${remaining} pts`);
       loadStoreItems();
       loadMyOrders();
       loadProfile();
       loadRewardHistory();
-      loadStoreOrders(); // Refresh manager view too
+      loadStoreOrders();
     } catch (err) {
       showToast(err.response?.data?.message || 'Error redeeming item', 'error');
     }
@@ -231,48 +239,44 @@ export default function CollectorDashboard() {
     }
   }, [openComplaints, showToast]);
 
-  const handleUpdateStatus = async () => {
-    if (modalStatus === 'rejected' && !rejectionReason.trim()) {
-      showToast('Please provide a reason for rejection.', 'warning');
-      return;
-    }
+  // Bridge function: open ComplaintDetailModal for a complaint
+  const handleOpenComplaintDetail = (complaint) => {
+    setSelectedComplaint(complaint);
+    setComplaintDetailOpen(true);
+    setModalOpen(false); // close old modal if open
+  };
 
-    if (modalStatus === 'completed' && !completionFile) {
+  // Called by ComplaintDetailModal's onUpdateStatus prop
+  const handleComplaintUpdate = async (complaintId, { status, note, rejectionReason: reason, file }) => {
+    if (status === 'completed' && !file) {
       showToast('Proof of completion (photo) is required.', 'warning');
       return;
     }
-
+    if (status === 'rejected' && !reason?.trim()) {
+      showToast('Please provide a reason for rejection.', 'warning');
+      return;
+    }
     try {
       setIsCompleting(true);
-      if (modalStatus === 'completed') {
+      if (status === 'completed' && file) {
         const formData = new FormData();
-        formData.append('image', completionFile);
-        await completeComplaintApi(activeId, formData);
-        showToast(`Complaint ${activeId} marked as completed with proof! ✅`);
+        formData.append('image', file);
+        await completeComplaintApi(complaintId, formData);
+        showToast(`Complaint ${complaintId} marked as completed with proof! ✅`);
       } else {
-        const body = { status: modalStatus, note: `Status updated to ${modalStatus}` };
-        if (modalStatus === 'rejected') {
-          body.rejectionReason = rejectionReason.trim();
-        }
-        const res = await updateComplaintStatus(activeId, body);
-        showToast(`Complaint ${activeId} marked as "${modalStatus}" ✅`);
-        
-        // If completed (fallback for older logic), show reward message
-        if (modalStatus === 'completed' && res.data.rewardGiven) {
-          showToast('🎉 You earned 10 reward points!', 'info');
-        }
+        const body = { status, note: note || `Status updated to ${status}` };
+        if (status === 'rejected') body.rejectionReason = reason.trim();
+        await updateComplaintStatus(complaintId, body);
+        showToast(`Complaint ${complaintId} → "${status}" ✅`);
       }
-
-      setModalOpen(false);
-      setRejectionReason('');
-      setCompletionFile(null);
-      setCompletionPreview(null);
+      setComplaintDetailOpen(false);
+      setSelectedComplaint(null);
       loadDashboard();
       loadHistory();
       loadStats();
       loadProfile();
     } catch (err) {
-      showToast(err.response?.data?.message || 'Error', 'error');
+      showToast(err.response?.data?.message || 'Error updating status', 'error');
     } finally {
       setIsCompleting(false);
     }
@@ -318,10 +322,10 @@ export default function CollectorDashboard() {
     }
   };
 
-  const handleTakeOrder = async (orderId) => {
+  const handleTakeOrder = async (id) => {
     try {
-      await assignOrderApi(orderId);
-      showToast(`Order ${orderId} assigned to you! 👍`);
+      await assignOrderApi(id);
+      showToast(`Order assigned to you! 👍`);
       loadStoreOrders();
     } catch (err) {
       showToast(err.response?.data?.message || 'Error taking order', 'error');
@@ -453,40 +457,31 @@ export default function CollectorDashboard() {
                     <div className="empty-state-desc">No open complaints in your block. Great work keeping the campus clean!</div>
                   </div>
                 ) : openComplaints.map((c) => (
-                  <div className={`complaint-card ${c.type === 'iot' ? 'complaint-card-iot' : ''}`} key={c.complaintId}>
+                  <div className={`complaint-card card-lift ${c.type === 'iot' ? 'complaint-card-iot' : ''}`} key={c.complaintId} style={{ cursor: 'pointer' }} onClick={() => handleOpenComplaintDetail(c)}>
                     <div className="complaint-img">
                       {c.image ? (
                         <img src={c.image} alt="complaint" style={{ width: '100%', height: '100%', objectFit: 'cover', borderRadius: '8px' }} onError={(e) => { e.target.parentElement.innerHTML = '🗑️'; }} />
-                      ) : c.type === 'iot' ? (
-                        '📡'
-                      ) : (
-                        '🗑️'
-                      )}
+                      ) : c.type === 'iot' ? '📡' : '🗑️'}
                     </div>
                     <div className="complaint-body">
                       <div className="flex-between">
                         <div className="complaint-id">{c.complaintId}</div>
                         {c.type === 'iot' && (
-                          <span className="iot-badge">
-                            <span className="iot-badge-dot"></span>
-                            IoT Alert
-                          </span>
+                          <span className="iot-badge"><span className="iot-badge-dot"></span>IoT Alert</span>
                         )}
                       </div>
                       <div className="complaint-location">📍 {c.location}</div>
                       {c.type === 'iot' && c.binId && (
-                        <div style={{ fontSize: '.78rem', color: 'var(--clr-blue)', fontWeight: 600, margin: '.2rem 0' }}>
-                          🔗 Bin ID: {c.binId}
-                        </div>
+                        <div style={{ fontSize: '.78rem', color: 'var(--clr-blue)', fontWeight: 600, margin: '.2rem 0' }}>🔗 Bin ID: {c.binId}</div>
                       )}
                       <div className="complaint-desc" style={c.type === 'iot' ? { fontWeight: 700, color: 'var(--clr-red)' } : {}}>{c.description}</div>
-                      <div className="flex-between" style={{ flexWrap: 'wrap', gap: '.5rem' }}>
+                      <div className="flex-between" style={{ flexWrap: 'wrap', gap: '.5rem', marginTop: '.5rem' }}>
                         <StatusBadge status={c.status} />
                         <button
                           className="btn btn-primary btn-sm"
-                          onClick={() => { setActiveId(c.complaintId); setSelectedComplaint(c); setModalStatus('in-progress'); setModalOpen(true); }}
+                          onClick={e => { e.stopPropagation(); handleOpenComplaintDetail(c); }}
                         >
-                          Update Status
+                          👁 View &amp; Update
                         </button>
                       </div>
                     </div>
@@ -596,20 +591,20 @@ export default function CollectorDashboard() {
               </div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>ID</th><th>Photo</th><th>Location</th><th>Waste Type</th><th>Date</th><th>Status</th></tr></thead>
+                  <thead><tr><th>ID</th><th>Photo</th><th>Location</th><th>Waste Type</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
                     {resolved.length === 0 ? (
                       <tr>
-                        <td colSpan="6">
+                        <td colSpan="7">
                           <div className="empty-state" style={{ border: 'none', background: 'none' }}>
-                            <div className="empty-state-icon">⌛</div>
+                            <div className="empty-state-icon">⏳</div>
                             <div className="empty-state-title">No Resolved Complaints</div>
                             <div className="empty-state-desc">You haven't resolved any complaints yet. Completed tasks will appear here.</div>
                           </div>
                         </td>
                       </tr>
                     ) : resolved.map((c) => (
-                      <tr key={c.complaintId}>
+                      <tr key={c.complaintId} style={{ cursor: 'pointer' }} onClick={() => handleOpenComplaintDetail(c)}>
                         <td><span style={{ fontWeight: 700, color: 'var(--clr-green)' }}>{c.complaintId}</span></td>
                         <td>
                           {c.completionImage ? (
@@ -624,6 +619,9 @@ export default function CollectorDashboard() {
                         <td>{c.wasteType}</td>
                         <td>{fmtDate(c.createdAt)}</td>
                         <td><StatusBadge status={c.status} /></td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <button className="btn btn-sm btn-ghost" onClick={() => handleOpenComplaintDetail(c)}>👁 View</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -651,7 +649,7 @@ export default function CollectorDashboard() {
 
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>Order ID</th><th>Student</th><th>Item</th><th>Points</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
+                  <thead><tr><th>Order ID</th><th>Student</th><th>Item</th><th>⭐ Pts</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
                     {storeOrders.length === 0 ? (
                       <tr>
@@ -664,48 +662,49 @@ export default function CollectorDashboard() {
                         </td>
                       </tr>
                     ) : storeOrders.map((o) => (
-                      <tr key={o.orderId}>
+                      <tr key={o.orderId || o._id}>
                         <td>
-                          <button 
-                            className="btn-link" 
-                            style={{ fontWeight: 700, color: 'var(--clr-blue)', border: 'none', background: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline' }}
-                            onClick={() => handleViewDetails(o.orderId)}
+                          <button
+                            style={{ fontWeight: 700, color: 'var(--clr-blue)', border: 'none', background: 'none', padding: 0, cursor: 'pointer', textDecoration: 'underline', fontSize: '.82rem' }}
+                            onClick={() => handleViewDetails(o.orderId || o._id)}
                           >
                             {o.orderId}
                           </button>
                         </td>
                         <td>
-                          <div style={{ fontSize: '.85rem' }}>{o.userName}</div>
-                          <div className="text-muted" style={{ fontSize: '.72rem' }}>{o.user?.email || '—'}</div>
+                          <div style={{ fontSize: '.85rem', fontWeight: 600 }}>{o.userName}</div>
+                          <div className="text-muted" style={{ fontSize: '.72rem' }}>Block {o.block || '—'}</div>
                         </td>
-                        <td><span style={{ fontWeight: 600, color: 'var(--clr-amber)' }}>⭐ {o.pointsUsed}</span></td>
+                        <td style={{ fontSize: '.83rem', fontWeight: 600 }}>{o.itemName}</td>
+                        <td><span style={{ fontWeight: 700, color: 'var(--clr-amber)' }}>⭐ {o.pointsUsed}</span></td>
+                        <td style={{ fontSize: '.78rem' }}>{fmtDate(o.createdAt)}</td>
                         <td>
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '.6rem' }}>
+                          <div style={{ display: 'flex', flexDirection: 'column', gap: '.3rem' }}>
                             <StatusBadge status={o.status === 'ready_for_pickup' ? 'ready' : o.status === 'approved' ? 'in-progress' : o.status === 'delivered' ? 'completed' : 'pending'} />
-                            {!o.assignedTo && <span className="badge badge-amber" style={{ fontSize: '.7rem' }}>🆕 Available</span>}
-                            {o.assignedTo === user._id && <span className="badge badge-done" style={{ fontSize: '.7rem' }}>🔒 Assigned to You</span>}
+                            {!o.assignedTo && <span className="badge badge-amber" style={{ fontSize: '.65rem' }}>🆕 Available</span>}
+                            {o.assignedTo === user._id && <span className="badge badge-done" style={{ fontSize: '.65rem' }}>🔒 Mine</span>}
                           </div>
                         </td>
                         <td>
                           {!o.assignedTo ? (
-                            <button className="btn btn-sm btn-primary" onClick={() => handleTakeOrder(o._id)}>🤝 Take Order</button>
+                            <button className="btn btn-sm btn-primary" onClick={() => handleTakeOrder(o._id || o.orderId)}>🤝 Take</button>
                           ) : o.assignedTo === user._id ? (
-                            <div style={{ display: 'flex', gap: '.4rem' }}>
+                            <div style={{ display: 'flex', gap: '.3rem', flexWrap: 'wrap' }}>
                               {o.status === 'pending' && (
                                 <button className="btn btn-sm btn-blue" onClick={() => handleOrderStatus(o.orderId, 'approved')}>👍 Approve</button>
                               )}
                               {o.status === 'approved' && (
-                                <button className="btn btn-sm btn-amber" onClick={() => handleOrderStatus(o.orderId, 'ready_for_pickup')}>🎁 Ready for Pickup</button>
+                                <button className="btn btn-sm btn-amber" onClick={() => handleOrderStatus(o.orderId, 'ready_for_pickup')}>🎁 Ready</button>
                               )}
                               {o.status === 'ready_for_pickup' && (
                                 <button className="btn btn-sm btn-primary" onClick={() => handleViewDetails(o.orderId)}>🚚 Deliver</button>
                               )}
                               {o.status === 'delivered' && (
-                                <span className="text-muted" style={{ fontSize: '.8rem' }}>Claimed</span>
+                                <span className="text-muted" style={{ fontSize: '.75rem' }}>✅ Done</span>
                               )}
                             </div>
                           ) : (
-                            <span className="text-muted" style={{ fontSize: '.8rem' }}>Assigned to other</span>
+                            <span className="text-muted" style={{ fontSize: '.75rem' }}>Other collector</span>
                           )}
                         </td>
                       </tr>
@@ -889,139 +888,15 @@ export default function CollectorDashboard() {
         </div>
       </main>
 
-      {/* Complaint Detail + Status Modal */}
-      <Modal id="update-modal" isOpen={modalOpen} onClose={() => { setModalOpen(false); setRejectionReason(''); setCompletionFile(null); setCompletionPreview(null); }} title="📋 Complaint Details">
-        {selectedComplaint && (
-          <div style={{ marginBottom: '1rem' }}>
-            {/* Complaint Image */}
-            <div style={{ display: 'flex', gap: '1rem', marginBottom: '1rem' }}>
-              <div style={{ flex: 1 }}>
-                <div className="info-label" style={{ marginBottom: '.4rem' }}>📸 Initial Photo</div>
-                {selectedComplaint.image ? (
-                    <img
-                      src={selectedComplaint.image}
-                      alt="Initial"
-                      style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', border: '1px solid var(--border)' }}
-                      onError={(e) => { e.target.parentElement.style.display = 'none'; }}
-                    />
-                ) : (
-                  <div style={{ height: '120px', borderRadius: '8px', background: 'rgba(0,0,0,.04)', display: 'grid', placeItems: 'center', color: 'var(--txt-muted)', fontSize: '.8rem' }}>No image</div>
-                )}
-              </div>
-              {selectedComplaint.status === 'completed' && selectedComplaint.completionImage && (
-                <div style={{ flex: 1 }}>
-                  <div className="info-label" style={{ marginBottom: '.4rem', color: 'var(--clr-green)' }}>✅ Completion Proof</div>
-                  <img
-                    src={selectedComplaint.completionImage}
-                    alt="Completion"
-                    style={{ width: '100%', maxHeight: '200px', objectFit: 'cover', borderRadius: '8px', border: '2px solid var(--clr-green)' }}
-                    onError={(e) => { e.target.parentElement.style.display = 'none'; }}
-                  />
-                </div>
-              )}
-            </div>
-
-            {/* Complaint Details Grid */}
-            <div className="grid-2" style={{ gap: '.8rem', marginBottom: '1rem', fontSize: '.88rem' }}>
-              <div>
-                <div className="info-label">📋 Complaint ID</div>
-                <div style={{ fontWeight: 700, color: 'var(--clr-blue)' }}>{selectedComplaint.complaintId}</div>
-              </div>
-              <div>
-                <div className="info-label">🏢 Block</div>
-                <div style={{ fontWeight: 700 }}>Block {selectedComplaint.block}</div>
-              </div>
-              <div>
-                <div className="info-label">📍 Location</div>
-                <div style={{ fontWeight: 600 }}>{selectedComplaint.location}</div>
-              </div>
-              <div>
-                <div className="info-label">🗑️ Waste Type</div>
-                <div style={{ fontWeight: 600 }}>{selectedComplaint.wasteType}</div>
-              </div>
-              <div style={{ gridColumn: '1 / -1' }}>
-                <div className="info-label">📝 Description</div>
-                <div style={{ fontWeight: 500, lineHeight: 1.5 }}>{selectedComplaint.description}</div>
-              </div>
-              <div>
-                <div className="info-label">📅 Date</div>
-                <div>{fmtDate(selectedComplaint.createdAt)}</div>
-              </div>
-              <div>
-                <div className="info-label">📌 Current Status</div>
-                <StatusBadge status={selectedComplaint.status} />
-              </div>
-            </div>
-
-            {/* Rejection reason display if already rejected */}
-            {selectedComplaint.status === 'rejected' && selectedComplaint.rejectionReason && (
-              <div style={{ padding: '.8rem 1rem', borderRadius: '8px', background: 'rgba(235,76,76,.08)', border: '1px solid rgba(235,76,76,.2)', marginBottom: '1rem' }}>
-                <div style={{ fontSize: '.75rem', fontWeight: 700, color: 'var(--clr-red)', textTransform: 'uppercase', marginBottom: '.3rem' }}>❌ Rejection Reason</div>
-                <div style={{ fontSize: '.88rem' }}>{selectedComplaint.rejectionReason}</div>
-              </div>
-            )}
-          </div>
-        )}
-
-        {/* Status update form — only if NOT already completed/rejected */}
-        {selectedComplaint && !['completed', 'rejected'].includes(selectedComplaint.status) && (
-          <>
-            <div style={{ borderBottom: '2px dashed var(--border)', margin: '.8rem 0' }}></div>
-            <div className="form-group mb-2">
-              <label className="form-label">Update Status</label>
-              <select className="form-select" value={modalStatus} onChange={(e) => setModalStatus(e.target.value)}>
-                <option value="in-progress">🔄 In Progress</option>
-                <option value="completed">✅ Completed</option>
-                <option value="rejected">❌ Rejected</option>
-              </select>
-            </div>
-
-            {modalStatus === 'rejected' && (
-              <div className="form-group mb-2">
-                <label className="form-label">Rejection Reason <span style={{ color: 'var(--clr-red)' }}>*</span></label>
-                <textarea
-                  className="form-input"
-                  rows="3"
-                  value={rejectionReason}
-                  onChange={(e) => setRejectionReason(e.target.value)}
-                  placeholder="e.g., Duplicate complaint, area already cleaned, invalid location..."
-                  style={{ resize: 'vertical', minHeight: '80px' }}
-                />
-              </div>
-            )}
-
-            {modalStatus === 'completed' && (
-              <div className="form-group mb-2">
-                <label className="form-label">Upload Proof of Completion <span style={{ color: 'var(--clr-red)' }}>*</span></label>
-                <input
-                  type="file"
-                  className="form-input"
-                  accept="image/*"
-                  onChange={handleFileChange}
-                />
-                {completionPreview && (
-                  <div style={{ marginTop: '1rem', textAlign: 'center' }}>
-                    <p style={{ fontSize: '.75rem', color: 'var(--txt-muted)', marginBottom: '.5rem' }}>Preview:</p>
-                    <img
-                      src={completionPreview}
-                      alt="Completion preview"
-                      style={{ width: '100%', maxHeight: '200px', objectFit: 'contain', borderRadius: '8px', border: '1px solid var(--border)' }}
-                    />
-                  </div>
-                )}
-              </div>
-            )}
-
-            <button
-              className={`btn btn-full ${modalStatus === 'rejected' ? 'btn-red' : 'btn-primary'} ${isCompleting ? 'btn-disabled' : ''}`}
-              onClick={handleUpdateStatus}
-              disabled={isCompleting || (modalStatus === 'completed' && !completionFile)}
-            >
-              {isCompleting ? '⌛ Processing...' : modalStatus === 'rejected' ? '❌ Reject Complaint' : '✅ Save Status'}
-            </button>
-          </>
-        )}
-      </Modal>
+      {/* ── Complaint Detail + Status Update Modal (unified via ComplaintDetailModal) ── */}
+      <ComplaintDetailModal
+        isOpen={complaintDetailOpen}
+        onClose={() => { setComplaintDetailOpen(false); setSelectedComplaint(null); }}
+        complaint={selectedComplaint}
+        role="collector"
+        onUpdateStatus={handleComplaintUpdate}
+        isUpdating={isCompleting}
+      />
 
       {/* Order Detail Modal */}
       <Modal 
@@ -1175,6 +1050,9 @@ export default function CollectorDashboard() {
           </div>
         ) : null}
       </Modal>
+
+      {/* Token ID Tracker floating panel */}
+      <TokenTracker />
     </div>
   );
 }

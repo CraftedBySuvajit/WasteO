@@ -6,11 +6,14 @@ import Topbar from '../../components/layout/Topbar';
 import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
+import TokenTracker from '../../components/ui/TokenTracker';
+import ComplaintDetailModal from '../../components/ui/ComplaintDetailModal';
 import { fmtDate, getInitials } from '../../utils/helpers';
 import {
   getComplaints,
   getUsers,
   getUserById,
+  getOrderById,
   createUser,
   deleteUserApi,
   getDashboardStats,
@@ -24,12 +27,19 @@ import {
 
 const NAV_ITEMS = [
   { id: 'sec-dashboard', label: 'Dashboard', icon: '📊' },
+  { id: 'sec-activity', label: 'Activity', icon: '📜' },
   { id: 'sec-store-orders', label: 'Store Orders', icon: '🛍️' },
   { id: 'sec-collectors', label: 'Manage Collectors', icon: '🚛' },
   { id: 'sec-users', label: 'Manage Students', icon: '🎓' },
   { id: 'sec-rewards', label: 'Give Rewards', icon: '🏆' },
   { id: 'sec-profile', label: 'Profile', icon: '🔐' },
 ];
+
+const matchesAnyField = (values, query) => {
+  if (!query.trim()) return true;
+  const q = query.trim().toLowerCase();
+  return values.some((value) => String(value ?? '').toLowerCase().includes(q));
+};
 
 export default function AdminDashboard() {
   const { user } = useAuth();
@@ -50,18 +60,29 @@ export default function AdminDashboard() {
   // Users (students)
   const [studentUsers, setStudentUsers] = useState([]);
   const [createStudentModalOpen, setCreateStudentModalOpen] = useState(false);
+  const [studentSearch, setStudentSearch] = useState('');
 
   // Collectors
   const [collectors, setCollectors] = useState([]);
   const [createCollectorModalOpen, setCreateCollectorModalOpen] = useState(false);
+  const [collectorSearch, setCollectorSearch] = useState('');
 
   // Store Orders
   const [allOrders, setAllOrders] = useState([]);
+  const [orderSearch, setOrderSearch] = useState('');
+  const [selectedOrder, setSelectedOrder] = useState(null);
+  const [orderModalOpen, setOrderModalOpen] = useState(false);
+  const [isOrderLoading, setIsOrderLoading] = useState(false);
 
   // View user modal
   const [viewModalOpen, setViewModalOpen] = useState(false);
   const [viewUserData, setViewUserData] = useState(null);
   const [viewUserComplaints, setViewUserComplaints] = useState([]);
+
+  // Complaint detail modal (admin view-only)
+  const [complaintDetailOpen, setComplaintDetailOpen] = useState(false);
+  const [selectedComplaint, setSelectedComplaint] = useState(null);
+  const [complaintSearch, setComplaintSearch] = useState('');
 
   // Create Student form
   const [csName, setCsName] = useState('');
@@ -242,6 +263,19 @@ export default function AdminDashboard() {
     } catch { /* ignore */ }
   };
 
+  const handleViewOrder = async (id) => {
+    try {
+      setIsOrderLoading(true);
+      const res = await getOrderById(id);
+      setSelectedOrder(res.data);
+      setOrderModalOpen(true);
+    } catch (err) {
+      showToast(err.response?.data?.message || 'Error fetching order details', 'error');
+    } finally {
+      setIsOrderLoading(false);
+    }
+  };
+
   const handleAwardReward = async (e) => {
     e.preventDefault();
     const activity = rewActivity === 'Custom' ? rewCustom.trim() : rewActivity;
@@ -297,6 +331,44 @@ export default function AdminDashboard() {
   };
 
   const currentLabel = NAV_ITEMS.find((n) => n.id === section)?.label || '';
+
+  const filteredComplaints = allComplaints.filter((c) => matchesAnyField([
+    c.complaintId,
+    c.user?.name,
+    c.user?.email,
+    c.location,
+    c.block,
+    c.status,
+    c.type,
+  ], complaintSearch));
+
+  const filteredCollectors = collectors.filter((c) => matchesAnyField([
+    c._id,
+    c.name,
+    c.email,
+    c.block,
+    c.dept,
+    c.role,
+  ], collectorSearch));
+
+  const filteredStudents = studentUsers.filter((u) => matchesAnyField([
+    u._id,
+    u.name,
+    u.email,
+    u.dept,
+    u.block,
+    u.role,
+  ], studentSearch));
+
+  const filteredOrders = allOrders.filter((o) => matchesAnyField([
+    o.orderId,
+    o.userName,
+    o.user?.email,
+    o.itemName,
+    o.block,
+    o.status,
+    o.pickupCode,
+  ], orderSearch));
 
   return (
     <div className="app-layout">
@@ -359,14 +431,24 @@ export default function AdminDashboard() {
               </div>
               <div className="card">
                 <div className="section-title"><div className="section-title-bar"></div><h2>All Complaints</h2></div>
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Search complaints by token, name, location, or block</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={complaintSearch}
+                    onChange={(e) => setComplaintSearch(e.target.value)}
+                    placeholder="COMP-0001, student name, email, block, or status"
+                  />
+                </div>
                 <div className="table-wrap">
                   <table>
-                    <thead><tr><th>ID</th><th>Photo</th><th>Student</th><th>Location</th><th>Block</th><th>Assigned To</th><th>Date</th><th>Status</th></tr></thead>
+                    <thead><tr><th>ID</th><th>Photo</th><th>Student</th><th>Location</th><th>Block</th><th>Assigned To</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
                     <tbody>
-                      {allComplaints.length === 0 ? (
-                        <tr><td colSpan="8" style={{ textAlign: 'center', padding: '2rem', color: 'var(--txt-muted)' }}>No complaints yet.</td></tr>
-                      ) : allComplaints.map((c) => (
-                        <tr key={c.complaintId}>
+                      {filteredComplaints.length === 0 ? (
+                        <tr><td colSpan="9" style={{ textAlign: 'center', padding: '2rem', color: 'var(--txt-muted)' }}>No complaints yet.</td></tr>
+                      ) : filteredComplaints.map((c) => (
+                        <tr key={c.complaintId} style={{ cursor: 'pointer' }} onClick={() => { setSelectedComplaint(c); setComplaintDetailOpen(true); }}>
                           <td><strong style={{ color: 'var(--clr-blue)' }}>{c.complaintId}</strong></td>
                           <td>
                             {c.image ? (
@@ -382,25 +464,9 @@ export default function AdminDashboard() {
                           <td><span className="badge badge-progress">🏢 {c.block || '—'}</span></td>
                           <td>{c.assignedTo?.name || <span style={{ color: 'var(--txt-muted)', fontSize: '.8rem' }}>Unassigned</span>}</td>
                           <td>{fmtDate(c.createdAt)}</td>
-                          <td>
-                            <StatusBadge status={c.status} />
-                            {c.status === 'completed' && c.completionImage && (
-                              <div style={{ marginTop: '.4rem' }}>
-                                <a 
-                                  href={c.completionImage} 
-                                  target="_blank" 
-                                  rel="noopener noreferrer"
-                                  style={{ fontSize: '.7rem', color: 'var(--clr-green)', fontWeight: 700, textDecoration: 'underline', display: 'flex', alignItems: 'center', gap: '.2rem' }}
-                                >
-                                  📸 View Proof
-                                </a>
-                              </div>
-                            )}
-                            {c.status === 'rejected' && c.rejectionReason && (
-                              <div style={{ fontSize: '.7rem', color: 'var(--clr-red)', marginTop: '.3rem', maxWidth: '150px', lineHeight: 1.2 }}>
-                                <strong>Reason:</strong> {c.rejectionReason}
-                              </div>
-                            )}
+                          <td><StatusBadge status={c.status} /></td>
+                          <td onClick={e => e.stopPropagation()}>
+                            <button className="btn btn-sm btn-ghost" onClick={() => { setSelectedComplaint(c); setComplaintDetailOpen(true); }}>👁 View</button>
                           </td>
                         </tr>
                       ))}
@@ -408,6 +474,19 @@ export default function AdminDashboard() {
                   </table>
                 </div>
               </div>
+            </section>
+          )}
+
+          {/* ── ACTIVITY ── */}
+          {section === 'sec-activity' && (
+            <section className="page-section active">
+              <div className="section-title"><div className="section-title-bar"></div><h2>📜 User & Collector Activity</h2></div>
+              <div className="card mb-3">
+                <p className="text-muted" style={{ margin: 0, lineHeight: 1.7 }}>
+                  Track student and collector actions, then use the token tracker to search complaint and order IDs across all users.
+                </p>
+              </div>
+              <TokenTracker />
             </section>
           )}
 
@@ -425,13 +504,23 @@ export default function AdminDashboard() {
               </div>
 
               <div className="table-wrap">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Search orders by token, student, product, block, or status</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={orderSearch}
+                    onChange={(e) => setOrderSearch(e.target.value)}
+                    placeholder="ORD-0001, student name, email, item, or pickup code"
+                  />
+                </div>
                 <table>
                   <thead><tr><th>Order ID</th><th>Customer</th><th>Product</th><th>Status Tracking</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {allOrders.length === 0 ? (
+                    {filteredOrders.length === 0 ? (
                       <tr><td colSpan="5" style={{ textAlign: 'center', padding: '2rem', color: 'var(--txt-muted)' }}>No marketplace activity yet.</td></tr>
-                    ) : allOrders.map((o) => (
-                      <tr key={o.orderId}>
+                    ) : filteredOrders.map((o) => (
+                      <tr key={o.orderId} style={{ cursor: 'pointer' }} onClick={() => handleViewOrder(o.orderId)}>
                         <td><strong style={{ color: 'var(--clr-blue)' }}>{o.orderId}</strong><div className="text-muted" style={{ fontSize: '.7rem' }}>{fmtDate(o.createdAt)}</div></td>
                         <td>{o.userName}<div className="text-muted" style={{ fontSize: '.7rem' }}>{o.user?.email || '—'}</div></td>
                         <td>{o.itemName}<div className="text-muted" style={{ fontSize: '.7rem' }}>⭐ {o.pointsUsed} pts</div></td>
@@ -454,9 +543,9 @@ export default function AdminDashboard() {
                         </td>
                         <td>
                           <div style={{ display: 'flex', gap: '.4rem' }}>
-                            {o.status === 'pending' && <button className="btn btn-sm btn-blue" onClick={() => handleOrderStatus(o.orderId, 'approved')}>Approve</button>}
-                            {o.status === 'approved' && <button className="btn btn-sm btn-amber" onClick={() => handleOrderStatus(o.orderId, 'ready_for_pickup')}>Ready</button>}
-                            {o.status === 'ready_for_pickup' && <button className="btn btn-sm btn-primary" onClick={() => handleOrderStatus(o.orderId, 'delivered')}>Deliver</button>}
+                            {o.status === 'pending' && <button className="btn btn-sm btn-blue" onClick={(e) => { e.stopPropagation(); handleOrderStatus(o.orderId, 'approved'); }}>Approve</button>}
+                            {o.status === 'approved' && <button className="btn btn-sm btn-amber" onClick={(e) => { e.stopPropagation(); handleOrderStatus(o.orderId, 'ready_for_pickup'); }}>Ready</button>}
+                            {o.status === 'ready_for_pickup' && <button className="btn btn-sm btn-primary" onClick={(e) => { e.stopPropagation(); handleOrderStatus(o.orderId, 'delivered'); }}>Deliver</button>}
                             {o.status === 'delivered' && <span className="text-muted" style={{ fontSize: '.75rem' }}>Filled</span>}
                           </div>
                         </td>
@@ -484,19 +573,29 @@ export default function AdminDashboard() {
               </div>
 
               <div className="table-wrap">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Search collectors by id, email, name, block, or role</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={collectorSearch}
+                    onChange={(e) => setCollectorSearch(e.target.value)}
+                    placeholder="collector@email.com, name, id, or block"
+                  />
+                </div>
                 <table>
-                  <thead><tr><th>Email</th><th>Name</th><th>Email</th><th>Block</th><th>Created</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Block</th><th>Created</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {collectors.length === 0 ? (
+                    {filteredCollectors.length === 0 ? (
                       <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--txt-muted)' }}>No collectors found. Add one using the button above.</td></tr>
-                    ) : collectors.map((c) => (
-                      <tr key={c._id}>
-                        <td><strong style={{ fontSize: '.75rem' }}>{c.email}</strong></td>
+                    ) : filteredCollectors.map((c) => (
+                      <tr key={c._id} style={{ cursor: 'pointer' }} onClick={() => handleViewUser(c._id)}>
+                        <td><strong style={{ fontSize: '.75rem' }}>{c._id}</strong></td>
                         <td>{c.name}</td>
                         <td style={{ fontSize: '.82rem' }}>{c.email}</td>
                         <td><span className="badge badge-progress" style={{ fontWeight: 700 }}>🏢 Block {c.block || '—'}</span></td>
                         <td style={{ fontSize: '.82rem' }}>{fmtDate(c.createdAt)}</td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '.4rem' }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleViewUser(c._id)}>👁 View</button>
                             <button className="btn btn-red btn-sm" onClick={() => handleDeleteUser(c._id, c.name)}>🗑 Delete</button>
@@ -518,19 +617,29 @@ export default function AdminDashboard() {
                 <button className="btn btn-primary" onClick={() => setCreateStudentModalOpen(true)}>➕ Create Student</button>
               </div>
               <div className="table-wrap">
+                <div className="form-group" style={{ marginBottom: '1rem' }}>
+                  <label className="form-label">Search students by id, email, name, department, or block</label>
+                  <input
+                    className="form-input"
+                    type="text"
+                    value={studentSearch}
+                    onChange={(e) => setStudentSearch(e.target.value)}
+                    placeholder="student@email.com, name, id, or department"
+                  />
+                </div>
                 <table>
-                  <thead><tr><th>Email</th><th>Name</th><th>Email</th><th>Department</th><th>Reward Pts</th><th>Actions</th></tr></thead>
+                  <thead><tr><th>ID</th><th>Name</th><th>Email</th><th>Department</th><th>Reward Pts</th><th>Actions</th></tr></thead>
                   <tbody>
-                    {studentUsers.length === 0 ? (
+                    {filteredStudents.length === 0 ? (
                       <tr><td colSpan="6" style={{ textAlign: 'center', padding: '2rem', color: 'var(--txt-muted)' }}>No students found.</td></tr>
-                    ) : studentUsers.map((u) => (
-                      <tr key={u._id}>
-                        <td><strong style={{ fontSize: '.75rem' }}>{u.email}</strong></td>
+                    ) : filteredStudents.map((u) => (
+                      <tr key={u._id} style={{ cursor: 'pointer' }} onClick={() => handleViewUser(u._id)}>
+                        <td><strong style={{ fontSize: '.75rem' }}>{u._id}</strong></td>
                         <td>{u.name}</td>
                         <td style={{ fontSize: '.82rem' }}>{u.email}</td>
                         <td style={{ fontSize: '.82rem' }}>{u.dept || '—'}</td>
                         <td><span className="reward-pts">🏆 {u.rewardPoints || 0}</span></td>
-                        <td>
+                        <td onClick={(e) => e.stopPropagation()}>
                           <div style={{ display: 'flex', gap: '.4rem' }}>
                             <button className="btn btn-ghost btn-sm" onClick={() => handleViewUser(u._id)}>👁 View</button>
                             <button className="btn btn-red btn-sm" onClick={() => handleDeleteUser(u._id, u.name)}>🗑 Delete</button>
@@ -742,6 +851,49 @@ export default function AdminDashboard() {
           </>
         )}
       </Modal>
+
+      {/* ══ Order Detail Modal ══ */}
+      <Modal isOpen={orderModalOpen} onClose={() => { setOrderModalOpen(false); setSelectedOrder(null); }} title="Order Details">
+        {isOrderLoading && <p className="text-muted" style={{ margin: 0 }}>Loading order details...</p>}
+        {!isOrderLoading && selectedOrder && (
+          <div style={{ display: 'grid', gap: '1rem' }}>
+            <div className="profile-header" style={{ marginBottom: 0 }}>
+              <div style={{ width: 70, height: 70, borderRadius: '50%', background: 'linear-gradient(135deg,var(--clr-amber),var(--clr-blue))', display: 'grid', placeItems: 'center', fontSize: '1.2rem', fontWeight: 700, color: '#fff' }}>
+                {selectedOrder.orderId?.slice(-4) || 'ORD'}
+              </div>
+              <div>
+                <h3>{selectedOrder.orderId}</h3>
+                <p style={{ fontSize: '.85rem' }}>{selectedOrder.userName || selectedOrder.user?.name || '—'}</p>
+                <div className="profile-meta" style={{ marginTop: '.4rem' }}>
+                  <span className="profile-meta-tag">📦 {selectedOrder.itemName}</span>
+                  <span className="profile-meta-tag">🏢 Block {selectedOrder.block || '—'}</span>
+                  <span className="profile-meta-tag">⭐ {selectedOrder.pointsUsed || 0} pts</span>
+                </div>
+              </div>
+            </div>
+            <div className="grid-2">
+              <div className="stat-card"><div className="stat-icon">👤</div><div className="stat-value">{selectedOrder.user?.email || '—'}</div><div className="stat-label">Customer Email</div></div>
+              <div className="stat-card"><div className="stat-icon">🔎</div><div className="stat-value">{selectedOrder.status}</div><div className="stat-label">Current Status</div></div>
+            </div>
+            <div className="card" style={{ margin: 0, padding: '1rem' }}>
+              <div className="grid-2" style={{ gap: '.8rem' }}>
+                <div><div className="text-muted" style={{ fontSize: '.72rem', textTransform: 'uppercase' }}>Pickup Location</div><div>{selectedOrder.pickupLocation || '—'}</div></div>
+                <div><div className="text-muted" style={{ fontSize: '.72rem', textTransform: 'uppercase' }}>Pickup Time</div><div>{selectedOrder.pickupTime || '—'}</div></div>
+                <div><div className="text-muted" style={{ fontSize: '.72rem', textTransform: 'uppercase' }}>Pickup Code</div><div>{selectedOrder.pickupCode || 'Hidden'}</div></div>
+                <div><div className="text-muted" style={{ fontSize: '.72rem', textTransform: 'uppercase' }}>Created</div><div>{fmtDate(selectedOrder.createdAt)}</div></div>
+              </div>
+            </div>
+          </div>
+        )}
+      </Modal>
+
+      {/* ── Complaint Detail Modal (Admin view-only) ── */}
+      <ComplaintDetailModal
+        isOpen={complaintDetailOpen}
+        onClose={() => { setComplaintDetailOpen(false); setSelectedComplaint(null); }}
+        complaint={selectedComplaint}
+        role="admin"
+      />
     </div>
   );
 }

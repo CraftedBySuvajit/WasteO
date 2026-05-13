@@ -6,6 +6,8 @@ import Topbar from '../../components/layout/Topbar';
 import StatusBadge from '../../components/ui/StatusBadge';
 import StatCard from '../../components/ui/StatCard';
 import Modal from '../../components/ui/Modal';
+import TokenTracker from '../../components/ui/TokenTracker';
+import ComplaintDetailModal from '../../components/ui/ComplaintDetailModal';
 import { fmtDate, getInitials } from '../../utils/helpers';
 import {
   getComplaints,
@@ -129,7 +131,8 @@ export default function StudentDashboard() {
       const res = await getRewards({ user: user._id });
       setRewards(res.data);
       const profRes = await getUserById(user._id);
-      setRewardTotal(profRes.data.rewardPoints || 0);
+      // rewardPoints is normalised in api.js
+      setRewardTotal(profRes.data.rewardPoints ?? profRes.data.reward_points ?? 0);
     } catch { /* ignore */ }
   }, [user._id]);
 
@@ -199,12 +202,13 @@ export default function StudentDashboard() {
     if (isRedeeming) return;
     setIsRedeeming(true);
     try {
-      console.log("REDEEM REQUEST for:", itemId);
       const res = await redeemStoreItem(itemId);
-      showToast(`Item redeemed! Order ${res.data.order.orderId} created. Remaining: ${res.data.remainingPoints} pts ✅`);
+      // api.js returns { order: {...}, remainingPoints }
+      const order = res.data?.order || res.data;
+      const remaining = res.data?.remainingPoints ?? '?';
+      showToast(`✅ Order ${order.orderId} placed! Pickup code: ${order.pickupCode} | Remaining: ${remaining} pts`);
       await Promise.all([loadStore(), loadOrders(), loadProfile(), loadRewards()]);
     } catch (err) {
-      console.error("REDEEM ERROR:", err);
       showToast(err.response?.data?.message || 'Error redeeming item', 'error');
     } finally {
       setIsRedeeming(false);
@@ -481,11 +485,11 @@ export default function StudentDashboard() {
               </div>
               <div className="table-wrap">
                 <table>
-                  <thead><tr><th>ID</th><th>Photo</th><th>Location</th><th>Waste Type</th><th>Date</th><th>Status</th></tr></thead>
+                  <thead><tr><th>ID</th><th>Photo</th><th>Location</th><th>Waste Type</th><th>Date</th><th>Status</th><th>Action</th></tr></thead>
                   <tbody>
                     {complaints.length === 0 ? (
                       <tr>
-                        <td colSpan="6">
+                        <td colSpan="7">
                           <div className="empty-state" style={{ border: 'none', background: 'none' }}>
                             <div className="empty-state-icon">📋</div>
                             <div className="empty-state-title">No Complaints Found</div>
@@ -494,11 +498,11 @@ export default function StudentDashboard() {
                         </td>
                       </tr>
                     ) : complaints.map((c) => (
-                      <tr key={c.complaintId}>
-                        <td><span onClick={() => handleViewComplaint(c.complaintId)} style={{ fontWeight: 700, color: '#4ade80', cursor: 'pointer' }}>{c.complaintId}</span></td>
+                      <tr key={c.complaintId} style={{ cursor: 'pointer' }} onClick={() => handleViewComplaint(c.complaintId)}>
+                        <td><span style={{ fontWeight: 700, color: 'var(--clr-blue)' }}>{c.complaintId}</span></td>
                         <td>
                           {c.image ? (
-                            <img src={c.image} alt="" style={{ width: 44, height: 44, borderRadius: '6px', objectFit: 'cover', cursor: 'pointer' }} onClick={() => handleViewComplaint(c.complaintId)} onError={(e) => { e.target.style.display = 'none'; }} />
+                            <img src={c.image} alt="" style={{ width: 44, height: 44, borderRadius: '6px', objectFit: 'cover' }} onError={(e) => { e.target.style.display = 'none'; }} />
                           ) : (
                             <span style={{ fontSize: '.75rem', color: 'var(--txt-muted)' }}>—</span>
                           )}
@@ -507,6 +511,12 @@ export default function StudentDashboard() {
                         <td>{c.wasteType}</td>
                         <td>{fmtDate(c.createdAt)}</td>
                         <td><StatusBadge status={c.status} /></td>
+                        <td onClick={e => e.stopPropagation()}>
+                          <button
+                            className="btn btn-sm btn-ghost"
+                            onClick={() => handleViewComplaint(c.complaintId)}
+                          >👁 View</button>
+                        </td>
                       </tr>
                     ))}
                   </tbody>
@@ -1026,73 +1036,13 @@ export default function StudentDashboard() {
           )}
         </Modal>
         
-        {/* ── COMPLAINT DETAIL MODAL ── */}
-        <Modal id="detail-modal" isOpen={detailModalOpen} onClose={() => setDetailModalOpen(false)} title="📋 Complaint Details">
-          {selectedDetail && (
-            <div className="complaint-detail-container" style={{ padding: '0 0.5rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
-                <h2 style={{ margin: 0, color: 'var(--clr-blue)' }}>{selectedDetail.complaintId}</h2>
-                <StatusBadge status={selectedDetail.status} />
-              </div>
-
-              <div className="grid-2" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
-                <div>
-                  <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)' }}>Location</div>
-                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--txt-primary)' }}>{selectedDetail.location}</p>
-                </div>
-                <div>
-                  <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)' }}>Waste Type</div>
-                  <p style={{ margin: 0, fontWeight: 600, color: 'var(--txt-primary)' }}>{selectedDetail.wasteType}</p>
-                </div>
-                <div style={{ gridColumn: '1 / -1' }}>
-                  <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)' }}>Description</div>
-                  <p style={{ margin: 0, color: 'var(--txt-primary)', lineHeight: 1.5 }}>{selectedDetail.description}</p>
-                </div>
-                <div>
-                  <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)' }}>Submitted On</div>
-                  <p style={{ margin: 0, fontSize: '0.85rem' }}>{new Date(selectedDetail.createdAt).toLocaleString()}</p>
-                </div>
-                {selectedDetail.assignedTo && (
-                  <div>
-                    <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)' }}>Assigned Collector</div>
-                    <p style={{ margin: 0, fontWeight: 600, color: 'var(--clr-green)' }}>{selectedDetail.assignedTo.name}</p>
-                  </div>
-                )}
-              </div>
-
-              {/* Images */}
-              <div className="grid-2" style={{ gap: '1rem', marginBottom: '1.5rem' }}>
-                {selectedDetail.image && (
-                  <div>
-                    <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)', marginBottom: '0.4rem' }}>Initial Photo</div>
-                    <img src={selectedDetail.image} alt="Complaint" style={{ width: '100%', borderRadius: '12px', border: '1px solid var(--border)', objectFit: 'cover', height: '180px' }} onError={(e) => { e.target.parentElement.style.display = 'none'; }} />
-                  </div>
-                )}
-                {selectedDetail.completionImage && (
-                  <div>
-                    <div className="form-label" style={{ fontSize: '0.7rem', color: 'var(--txt-muted)', marginBottom: '0.4rem' }}>Completion Proof</div>
-                    <img src={selectedDetail.completionImage} alt="Completed" style={{ width: '100%', borderRadius: '12px', border: '2px solid var(--clr-green)', objectFit: 'cover', height: '180px' }} onError={(e) => { e.target.parentElement.style.display = 'none'; }} />
-                  </div>
-                )}
-              </div>
-
-              {/* Status History */}
-              <div style={{ background: 'var(--bg-sidebar)', padding: '1.2rem', borderRadius: '12px', marginBottom: '1.5rem', border: '1px solid var(--border)' }}>
-                <h4 style={{ margin: '0 0 1rem 0', fontSize: '0.8rem', textTransform: 'uppercase', letterSpacing: '0.08em', color: 'var(--clr-green)' }}>Timeline & History</h4>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.8rem' }}>
-                  {selectedDetail.statusHistory.map((h, i) => (
-                    <div key={i} style={{ display: 'flex', gap: '1rem', fontSize: '0.82rem', alignItems: 'flex-start' }}>
-                      <div style={{ minWidth: '95px' }}><StatusBadge status={h.status} /></div>
-                      <div style={{ color: 'var(--txt-primary)', paddingTop: '2px' }}>{h.note}</div>
-                    </div>
-                  ))}
-                </div>
-              </div>
-
-              <button className="btn btn-primary btn-full" onClick={() => setDetailModalOpen(false)}>Close Details</button>
-            </div>
-          )}
-        </Modal>
+        {/* ── COMPLAINT DETAIL MODAL (replaces old inline version) ── */}
+        <ComplaintDetailModal
+          isOpen={detailModalOpen}
+          onClose={() => setDetailModalOpen(false)}
+          complaint={selectedDetail}
+          role="student"
+        />
 
         {/* ── CART MODAL ── */}
         <Modal id="cart-modal" isOpen={cartModalOpen} onClose={() => setCartModalOpen(false)} title="🛒 Your Cart">
@@ -1267,7 +1217,8 @@ export default function StudentDashboard() {
           )}
         </Modal>
 
-
+        {/* Token ID Tracker floating panel */}
+        <TokenTracker />
 
       </main>
     </div>
