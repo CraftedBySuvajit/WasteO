@@ -483,10 +483,10 @@ export default function AdminDashboard() {
               <div className="section-title"><div className="section-title-bar"></div><h2>📜 User & Collector Activity</h2></div>
               <div className="card mb-3">
                 <p className="text-muted" style={{ margin: 0, lineHeight: 1.7 }}>
-                  Track student and collector actions, then use the token tracker to search complaint and order IDs across all users.
+                  Track student and collector actions, search by complaint or order token, and inspect the full activity trail with all recorded details.
                 </p>
               </div>
-              <TokenTracker />
+              <TokenTracker embedded defaultOpen onUserClick={handleViewUser} />
             </section>
           )}
 
